@@ -9,7 +9,7 @@
 开启方式：在项目根目录放 feishu_config.json（见 feishu_config.example.json），
 或用环境变量 FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_ENABLE=1。
 """
-import os, json, time, urllib.request, urllib.parse
+import os, json, time, ipaddress, urllib.request, urllib.parse
 from flask import request, session, redirect, jsonify
 
 _OPEN = "https://open.feishu.cn"
@@ -24,6 +24,9 @@ class Config:
         self.redirect_base = (d.get("redirect_base") or "").strip().rstrip("/")
         # 会话密钥；留空则随机生成（重启后已登录用户需重新登录）
         self.secret_key = (d.get("secret_key") or "").strip()
+        # 局域网直连是否免登：内网用户直连 VM 时跳过飞书登录（默认开）。
+        # 直连速度快、绕开公网隧道；隧道进来的请求不受影响，照常走飞书。
+        self.lan_bypass = d.get("lan_bypass", True)
 
     @property
     def ready(self):
@@ -103,6 +106,22 @@ def _authorize_url(cfg):
 _EXEMPT = ("/feishu/callback", "/feishu/login", "/api/health", "/static/", "/favicon")
 
 
+def _is_lan_direct():
+    """请求是否来自局域网直连（而非经 cloudflared 隧道转发）。
+    直连：remote_addr 是私有网段 IP（192.168/10/172.16-31），且无转发头。
+    隧道：cloudflared 本机转发，remote_addr=127.0.0.1 且带 X-Forwarded-For。"""
+    # 经过任何反代/隧道都会带转发头，此时不认为是内网直连
+    if request.headers.get("X-Forwarded-For") or request.headers.get("X-Forwarded-Host"):
+        return False
+    addr = request.remote_addr or ""
+    try:
+        ip = ipaddress.ip_address(addr)
+    except ValueError:
+        return False
+    # 私有网段但排除本机回环（回环通常是隧道转发的来源）
+    return ip.is_private and not ip.is_loopback
+
+
 def init_app(app, cfg):
     """把飞书免登接入 Flask 应用。cfg 未就绪时不做任何拦截。"""
     if not cfg.ready:
@@ -136,6 +155,9 @@ def init_app(app, cfg):
     def _guard():
         p = request.path or ""
         if any(p.startswith(x) for x in _EXEMPT):
+            return None
+        # 局域网直连免登：内网用户直连 VM 时放行，享受局域网直连速度
+        if cfg.lan_bypass and _is_lan_direct():
             return None
         if session.get("fs_user"):
             return None
