@@ -1,0 +1,32 @@
+# Python 缓存和虚拟环境
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Windows 离线安装文件
+/依赖/
+/python-*.exe
+
+# 客户项目和生成报告，绝对不能上传
+/项目/
+/输出/
+
+# 服务器运行期间会变化的数据
+/模板库/标准库.json
+/模板库/设备库.json
+/模板库/测试方案.json
+/模板库/std_images/
+
+# 日志文件
+/构建/错误日志.txt
+*.log
+
+# 编辑器和系统文件
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 69MB 的正式 Word 模板单独保存在服务器
+/模板库/主体_full.docx

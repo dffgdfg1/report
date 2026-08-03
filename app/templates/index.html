@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MINEYE报告编辑助手</title>
+<link rel="icon" type="image/png" href="/static/logo.png?v=12">
+<link rel="stylesheet" href="/static/style.css?v=24">
+</head>
+<body>
+<header>
+  <img class="logo" src="/static/logo.png?v=12" alt="MINEYE">
+  <h1>MINEYE报告编辑助手</h1>
+  <input class="pname" id="pname" placeholder="项目名称（如报告编号）">
+  <button class="btn-ghost" id="btnOpen">打开…</button>
+  <button class="btn-ghost" id="btnNew">新建</button>
+  <button class="btn-ghost" id="btnImportForm">导入申请单</button>
+  <input type="file" id="formFile" accept=".pdf" style="display:none">
+  <button class="btn-ghost" id="btnStdMgr">标准库</button>
+  <input type="file" id="stdFile" accept=".xlsx" style="display:none">
+  <button class="btn-ghost" id="btnDevMgr">设备库</button>
+  <div class="spacer"></div>
+  <button class="btn-primary" id="btnSave">保存进度</button>
+  <button class="btn-go" id="btnGen">生成报告</button>
+  <span id="status"></span>
+</header>
+
+<main>
+  <div class="card" id="infoCard">
+    <div class="head" data-toggle>报告信息 <span class="badge">封面 + 样品信息</span></div>
+    <div class="body" id="infoBody"><!-- 由JS填充 --></div>
+  </div>
+
+  <div id="resultBar" class="result-bar" style="display:none"></div>
+
+  <div id="testList"></div>
+
+  <div class="center">
+    <button class="btn-primary" id="btnAddTest">＋ 添加测试项目</button>
+  </div>
+</main>
+
+<!-- 标准库管理面板 -->
+<div class="modal-mask" id="stdMgr" style="display:none">
+  <div class="modal">
+    <div class="modal-head">
+      <b>标准库管理</b>
+      <span class="modal-sub" id="stdCount"></span>
+      <div class="spacer"></div>
+      <span class="modal-close" id="stdMgrClose">×</span>
+    </div>
+    <div class="modal-tools">
+      <input id="stdSearch" class="std-search" placeholder="搜索测试项目 / 车厂 / 条件（2字即可）">
+      <div class="spacer"></div>
+      <button class="btn-primary" id="stdAdd">＋ 新增一条</button>
+      <button class="btn-ghost" id="stdImportBtn">导入 Excel</button>
+      <button class="btn-ghost" id="stdExportBtn">导出 Excel</button>
+      <button class="btn-ghost" id="stdTplBtn">下载模板</button>
+      <button class="btn-del" id="stdClearBtn">清空</button>
+    </div>
+    <div class="modal-body">
+      <table class="std-table">
+        <thead><tr>
+          <th style="width:4%"></th>
+          <th style="width:14%">车厂</th>
+          <th style="width:22%">标准号/条款号</th>
+          <th style="width:26%">试验条件</th>
+          <th style="width:22%">试验要求</th>
+          <th style="width:12%">操作</th>
+        </tr></thead>
+        <tbody id="stdTbody"></tbody>
+      </table>
+      <div id="stdEmpty" class="std-empty" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 设备库管理面板 -->
+<div class="modal-mask" id="devMgr" style="display:none">
+  <div class="modal">
+    <div class="modal-head">
+      <b>设备库</b>
+      <span class="modal-sub" id="devCount"></span>
+      <div class="spacer"></div>
+      <span class="modal-close" id="devMgrClose">×</span>
+    </div>
+    <div class="modal-tools">
+      <input id="devSearch" class="std-search" placeholder="搜索设备名称 / 型号 / 编号">
+      <div class="spacer"></div>
+      <button class="btn-primary" id="devAdd">＋ 新增设备</button>
+      <button class="btn-ghost" id="devImportBtn">导入 CSV</button>
+      <button class="btn-ghost" id="devExportBtn">导出 CSV</button>
+      <button class="btn-del" id="devClearBtn">清空</button>
+    </div>
+    <div class="modal-tip">从实验室设备清单 CSV 建库；「校准有效期止」＝校准日期 + 1年 − 1天，自动算好。报告里在「试验设备」表选设备即可自动带出名称/型号/编号/有效期。型号里的中文会自动去掉，只留编号。</div>
+    <div class="modal-body">
+      <table class="std-table dev-table">
+        <thead><tr>
+          <th style="width:20%">仪器设备名称</th>
+          <th style="width:15%">型号</th>
+          <th style="width:13%">管理编号</th>
+          <th style="width:12%">校准日期</th>
+          <th style="width:12%">有效期止</th>
+          <th style="width:16%">测试类型</th>
+          <th style="width:12%">操作</th>
+        </tr></thead>
+        <tbody id="devTbody"></tbody>
+      </table>
+      <div id="devEmpty" class="std-empty" style="display:none"></div>
+    </div>
+  </div>
+</div>
+<input type="file" id="devFile" accept=".csv" style="display:none">
+
+<div class="toast" id="toast"></div>
+<script src="/static/app.js?v=30"></script>
+</body>
+</html>
