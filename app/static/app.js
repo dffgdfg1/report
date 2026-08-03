@@ -857,17 +857,26 @@ function showResultActions(file, size) {
   const info = el("span", "result-info", `✓ 报告已生成（${mb} MB）：${file}`);
   bar.appendChild(info);
   const mkBtn = (label, fn) => { const b = el("button", "btn-mini"); b.textContent = label; b.onclick = fn; return b; };
+  // 是否本机访问：远程浏览器无法让服务器打开你电脑上的 WPS，只能下载后由本机 WPS 打开
+  const isLocal = ["localhost", "127.0.0.1", "::1", ""].includes(location.hostname);
+  const dl = () => { window.location = "/api/download?file=" + encodeURIComponent(file); };
   bar.appendChild(mkBtn("用 WPS 打开", async () => {
+    if (!isLocal) { dl(); return; }  // 远程：直接下载，Windows 会用本机 WPS 打开 .docx
     try {
       const j = await readJSON(await fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file }) }));
-      if (!j.ok) alert("打开失败：" + (j.error || "") + "\n可改用“打开文件夹”手动打开。");
+      if (!j.ok) {
+        if (j.remote) { dl(); return; }  // 服务器判定为远程访问，退回下载
+        alert("打开失败：" + (j.error || "") + "\n可改用“打开文件夹”手动打开。");
+      }
     } catch (e) { alert(e.message); }
   }));
-  bar.appendChild(mkBtn("打开所在文件夹", async () => {
-    try { await fetch("/api/open_folder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file }) }); }
-    catch (e) { alert(e.message); }
-  }));
-  bar.appendChild(mkBtn("下载", () => { window.location = "/api/download?file=" + encodeURIComponent(file); }));
+  if (isLocal) {
+    bar.appendChild(mkBtn("打开所在文件夹", async () => {
+      try { await fetch("/api/open_folder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file }) }); }
+      catch (e) { alert(e.message); }
+    }));
+  }
+  bar.appendChild(mkBtn("下载", dl));
 }
 
 // 生成前必填校验：返回问题列表

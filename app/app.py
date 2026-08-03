@@ -1,7 +1,20 @@
 # -*- coding: utf-8 -*-
 """本地报告生成器 Web 后端。仅监听 127.0.0.1，不联网。"""
-import os, re, json, uuid, glob, webbrowser, threading
+import os, re, json, uuid, glob, webbrowser, threading, sys, subprocess
 from flask import Flask, request, jsonify, send_file, send_from_directory, abort
+
+def _is_local_request():
+    """请求是否来自运行服务器的本机（localhost）。"""
+    return (request.remote_addr or "") in ("127.0.0.1", "::1", "localhost")
+
+def _native_open(path):
+    """在服务器本机用系统默认程序打开文件/文件夹（跨平台）。"""
+    if sys.platform.startswith("win"):
+        os.startfile(path)  # noqa: Windows 专用，仅在 Windows 上调用
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path])
 
 import presets as P
 import report_engine as E
@@ -1023,29 +1036,38 @@ def api_download():
 
 @app.route("/api/open", methods=["POST"])
 def api_open():
-    """在本机用默认程序(WPS/Word)打开生成的报告。仅本地使用。"""
+    """用默认程序(WPS/Word)打开生成的报告。仅当请求来自服务器本机时有效；
+    远程浏览器访问时无法打开对方电脑上的 WPS，前端应改为下载文件。"""
     data = request.get_json(force=True)
     fn = os.path.basename(data.get("file", ""))
     fp = os.path.join(OUT_DIR, fn)
     if not os.path.exists(fp):
         return jsonify({"ok": False, "error": "文件不存在"}), 404
+    if not _is_local_request():
+        # 服务器无法在你的电脑上启动 WPS，交给前端下载后由本机 WPS 打开
+        return jsonify({"ok": False, "remote": True,
+            "error": "服务器无法打开你电脑上的 WPS，请改用“下载”后用本机 WPS 打开。"}), 200
     try:
-        os.startfile(fp)  # Windows 专用
+        _native_open(fp)
         return jsonify({"ok": True})
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 200
 
 @app.route("/api/open_folder", methods=["POST"])
 def api_open_folder():
-    """打开输出文件夹并选中该文件。"""
+    """打开服务器本机输出文件夹并选中该文件（跨平台）。远程访问无效。"""
     data = request.get_json(force=True)
     fn = os.path.basename(data.get("file", ""))
     fp = os.path.join(OUT_DIR, fn)
+    if not _is_local_request():
+        return jsonify({"ok": False, "remote": True,
+            "error": "服务器无法打开你电脑上的文件夹，请改用“下载”。"}), 200
     try:
-        if os.path.exists(fp):
+        if os.path.exists(fp) and sys.platform.startswith("win"):
             os.system('explorer /select,"%s"' % fp)
         else:
-            os.startfile(OUT_DIR)
+            # Linux/macOS 或文件不存在时，打开输出目录
+            _native_open(OUT_DIR)
         return jsonify({"ok": True})
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 200
