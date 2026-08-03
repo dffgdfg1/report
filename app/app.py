@@ -19,12 +19,15 @@ def _native_open(path):
 import presets as P
 import report_engine as E
 import feishu_auth
+import locks
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJ_DIR = os.path.join(BASE, "项目")
 OUT_DIR = os.path.join(BASE, "输出")
 os.makedirs(PROJ_DIR, exist_ok=True)
 os.makedirs(OUT_DIR, exist_ok=True)
+# 跨进程文件锁目录：保护共享 JSON 在多 worker 下的并发读改写
+locks.init(os.path.join(BASE, "构建", ".locks"))
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 单次上传上限 200MB
@@ -198,6 +201,7 @@ def api_schemes():
     return jsonify(sorted(_load_schemes().keys()))
 
 @app.route("/api/scheme/save", methods=["POST"])
+@locks.locked("scheme")
 def api_scheme_save():
     data = request.get_json(force=True)
     sname = (data.get("scheme_name") or "").strip()
@@ -222,6 +226,7 @@ def api_scheme_get():
     return jsonify({"ok": True, "scheme": schemes[sname]})
 
 @app.route("/api/scheme/delete", methods=["POST"])
+@locks.locked("scheme")
 def api_scheme_delete():
     data = request.get_json(force=True)
     sname = (data.get("name") or "").strip()
@@ -264,6 +269,7 @@ _STD_COLMAP = {
 }
 
 @app.route("/api/standards/import", methods=["POST"])
+@locks.locked("std")
 def api_standards_import():
     """上传填好的 Excel 模板，解析并合并进标准库。"""
     f = request.files.get("file")
@@ -383,12 +389,14 @@ def api_standards_import():
                     "images": imgs_imported, "images_orphan": imgs_orphan})
 
 @app.route("/api/standards/clear", methods=["POST"])
+@locks.locked("std")
 def api_standards_clear():
     """清空整个标准库（谨慎）。"""
     _save_std({})
     return jsonify({"ok": True})
 
 @app.route("/api/standards/upsert", methods=["POST"])
+@locks.locked("std")
 def api_standards_upsert():
     """新增或修改一条标准。body:
     {old_item, old_oem, item, oem, standard, condition, requirement}
@@ -425,6 +433,7 @@ def api_standards_upsert():
                     "items": len(std), "pairs": sum(len(v) for v in std.values())})
 
 @app.route("/api/standards/delete", methods=["POST"])
+@locks.locked("std")
 def api_standards_delete():
     """删除一条(给 item+oem)或整个测试项目(只给 item)。"""
     d = request.get_json(force=True) or {}
@@ -608,6 +617,7 @@ def _std_entry(std, item, oem):
     return (std.get(item) or {}).get(oem)
 
 @app.route("/api/standards/image/upload", methods=["POST"])
+@locks.locked("std")
 def api_std_image_upload():
     """给一条标准上传附图。form: item, oem, files[]。"""
     item = (request.form.get("item") or "").strip()
@@ -640,6 +650,7 @@ def api_std_image(fn):
     return send_from_directory(STD_IMG_DIR, fn)
 
 @app.route("/api/standards/image/delete", methods=["POST"])
+@locks.locked("std")
 def api_std_image_delete():
     """删除一条标准里的某张附图。body: item, oem, file。"""
     d = request.get_json(force=True) or {}
@@ -661,6 +672,7 @@ def api_std_image_delete():
     return jsonify({"ok": True, "count": len(e["images"])})
 
 @app.route("/api/standards/image/caption", methods=["POST"])
+@locks.locked("std")
 def api_std_image_caption():
     """改附图的图注。body: item, oem, file, caption。"""
     d = request.get_json(force=True) or {}
@@ -676,6 +688,7 @@ def api_std_image_caption():
     return jsonify({"ok": True})
 
 @app.route("/api/standards/image/apply", methods=["POST"])
+@locks.locked("std")
 def api_std_image_apply():
     """套用标准时，把该标准的附图复制进当前项目的 images 目录，
     返回可直接写进 test.condition_images 的记录列表。body: project, item, oem。"""
@@ -719,14 +732,15 @@ def _append_genlog(report_no):
     if not report_no:
         return
     import datetime
-    log = _load_genlog()
-    log.append({"report_no": report_no, "at": datetime.datetime.now().isoformat(timespec="seconds")})
-    log = log[-2000:]  # 只留最近 2000 条，防止无限增长
-    try:
-        with open(GENLOG_FILE, "w", encoding="utf-8") as f:
-            json.dump(log, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+    with locks.guard("genlog"):  # 多 worker 下防止并发写覆盖
+        log = _load_genlog()
+        log.append({"report_no": report_no, "at": datetime.datetime.now().isoformat(timespec="seconds")})
+        log = log[-2000:]  # 只留最近 2000 条，防止无限增长
+        try:
+            with open(GENLOG_FILE, "w", encoding="utf-8") as f:
+                json.dump(log, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
 
 # ============ 设备库：从实验室设备清单 CSV 建库，报告里手动选设备 ============
 DEV_FILE = os.path.join(BASE, "模板库", "设备库.json")
@@ -811,6 +825,7 @@ def _dev_norm_header(h):
     return re.sub(r"\s+", "", str(h or "")).strip()
 
 @app.route("/api/devices/import", methods=["POST"])
+@locks.locked("dev")
 def api_devices_import():
     """上传实验室设备清单 CSV，解析建库（覆盖式重建）。"""
     f = request.files.get("file")
@@ -885,6 +900,7 @@ def api_devices_import():
     return jsonify({"ok": True, "count": len(devices)})
 
 @app.route("/api/devices/clear", methods=["POST"])
+@locks.locked("dev")
 def api_devices_clear():
     _save_dev([])
     return jsonify({"ok": True})
@@ -906,6 +922,7 @@ def api_devices_export():
     return send_file(_io.BytesIO(data), as_attachment=True, download_name=fn, mimetype="text/csv")
 
 @app.route("/api/devices/upsert", methods=["POST"])
+@locks.locked("dev")
 def api_devices_upsert():
     """新增或修改一台设备。body: {old_mgmt_no?, name, model, mgmt_no, cal_date, factory_no, maker, test_type, remark}
     有效期止由 校准日期 自动算。管理编号唯一。"""
@@ -956,6 +973,7 @@ def api_devices_upsert():
     return jsonify({"ok": True, "created": created, "count": len(devices)})
 
 @app.route("/api/devices/delete", methods=["POST"])
+@locks.locked("dev")
 def api_devices_delete():
     """删除一台设备。body: {mgmt_no} 或 {name, model, factory_no}。"""
     d = request.get_json(force=True) or {}
