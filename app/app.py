@@ -49,15 +49,56 @@ def index():
 
 @app.after_request
 def _cache_policy(resp):
-    """代码文件(html/js/css)禁缓存，避免改动不生效；
-    图片(uuid命名、内容不变)长期缓存，避免每次刷新缩略图都重新拉取、压垮服务器。"""
+    """缓存策略：
+    - 图片(uuid命名、内容不变)、js/css(带 ?v= 版本号，改动即换URL) → 长期缓存，避免每次刷新重复下载；
+    - html/首页 → 禁缓存，保证版本号更新后能立即拉到新页面。"""
     p = request.path or ""
     if p.startswith("/api/image/"):
         resp.headers["Cache-Control"] = "public, max-age=604800"  # 图片缓存一周
-    elif p.endswith((".js", ".css")) or p == "/" or p.endswith(".html"):
+    elif p.endswith((".js", ".css")):
+        # 文件名带 ?v=NN 版本号，改代码时版本号一变 URL 就变，浏览器自动取新的；
+        # 所以可安全长期缓存，避免每次刷新都重下 80KB。
+        resp.headers["Cache-Control"] = "public, max-age=604800"
+    elif p == "/" or p.endswith(".html"):
         resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         resp.headers["Pragma"] = "no-cache"
         resp.headers["Expires"] = "0"
+    return resp
+
+# gzip 压缩：js/css/html/json 等文本响应体积可压到约 1/4，隧道访问提速明显。
+# 零依赖，用标准库 gzip；图片/docx 等已压缩内容跳过。
+import gzip as _gzip
+_COMPRESSIBLE = ("text/", "application/json", "application/javascript",
+                 "application/xml", "image/svg")
+
+@app.after_request
+def _gzip_response(resp):
+    try:
+        accept = request.headers.get("Accept-Encoding", "")
+        if "gzip" not in accept.lower():
+            return resp
+        if resp.status_code < 200 or resp.status_code >= 300:
+            return resp
+        # 下载类响应(docx等附件)不压：既大又已压缩，且会破坏流式传输
+        if "attachment" in (resp.headers.get("Content-Disposition") or "").lower():
+            return resp
+        if resp.headers.get("Content-Encoding"):
+            return resp
+        ctype = (resp.headers.get("Content-Type") or "").lower()
+        if not any(ctype.startswith(t) or t in ctype for t in _COMPRESSIBLE):
+            return resp
+        # 静态文件默认处于 direct_passthrough(流式)模式，get_data 会报错，先关掉
+        resp.direct_passthrough = False
+        data = resp.get_data()
+        if len(data) < 512:  # 太小压了反而不划算
+            return resp
+        comp = _gzip.compress(data, 6)
+        resp.set_data(comp)
+        resp.headers["Content-Encoding"] = "gzip"
+        resp.headers["Content-Length"] = str(len(comp))
+        resp.headers.add("Vary", "Accept-Encoding")
+    except Exception:
+        pass  # 压缩失败不影响正常返回
     return resp
 
 @app.route("/api/health")

@@ -1419,11 +1419,14 @@ function bindImportForm() {
 }
 
 async function init() {
-  try { ENV = await (await fetch("/api/env")).json(); } catch (e) {}
-  try { META = await (await fetch("/api/meta")).json(); } catch (e) {}
-  await reloadSchemes();
-  await reloadStandards();
-  await reloadDevices();
+  // 5 个初始请求互不依赖，并行拉取；比串行快数倍（尤其经隧道时）
+  await Promise.all([
+    (async () => { try { ENV = await (await fetch("/api/env")).json(); } catch (e) {} })(),
+    (async () => { try { META = await (await fetch("/api/meta")).json(); } catch (e) {} })(),
+    reloadSchemes(),
+    reloadStandards(),
+    reloadDevices(),
+  ]);
   state.info = applyDefaults(state.info);
   renderInfo(); renderTests();
   fillNextReportNo();  // 首次进入自动填今天的下一个报告编号
