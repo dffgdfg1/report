@@ -1,6 +1,22 @@
 "use strict";
+// 飞书会话过期拦截：任何 API 返回 401 login_required 时跳回飞书登录
+(function () {
+  const _fetch = window.fetch.bind(window);
+  window.fetch = async function (...args) {
+    const resp = await _fetch(...args);
+    try {
+      const url = typeof args[0] === "string" ? args[0] : (args[0] && args[0].url) || "";
+      if (resp.status === 401 && url.indexOf("/api/") >= 0) {
+        const j = await resp.clone().json().catch(() => ({}));
+        if (j && j.login_required) { window.location = "/feishu/login"; }
+      }
+    } catch (e) {}
+    return resp;
+  };
+})();
 // ============ 状态 ============
 let META = { types: [], presets: {}, img_w: 4.8, img_h: 6.4 };
+let ENV = { feishu: false, user: "", is_local: true };  // 运行环境：飞书免登/是否本机
 let state = { name: "", info: {}, tests: [] };
 let SCHEMES = [];   // 已保存的测试方案名列表
 let STD = {};       // 标准库：{测试项目: {车厂: {standard, condition, requirement}}}
@@ -844,6 +860,13 @@ async function serverAlive() {
   catch (e) { return false; }
 }
 
+// 下载文件：飞书 webview 用 window.open 交给系统处理，普通浏览器直接跳转
+function downloadFile(file) {
+  const url = "/api/download?file=" + encodeURIComponent(file);
+  if (ENV.feishu) { window.open(url, "_blank"); return; }
+  window.location = url;
+}
+
 // 生成成功后：显示"打开/打开文件夹/下载"操作条
 function showResultActions(file, size) {
   const mb = (size / 1048576).toFixed(1);
@@ -857,11 +880,12 @@ function showResultActions(file, size) {
   const info = el("span", "result-info", `✓ 报告已生成（${mb} MB）：${file}`);
   bar.appendChild(info);
   const mkBtn = (label, fn) => { const b = el("button", "btn-mini"); b.textContent = label; b.onclick = fn; return b; };
-  // 是否本机访问：远程浏览器无法让服务器打开你电脑上的 WPS，只能下载后由本机 WPS 打开
-  const isLocal = ["localhost", "127.0.0.1", "::1", ""].includes(location.hostname);
-  const dl = () => { window.location = "/api/download?file=" + encodeURIComponent(file); };
+  // 本机访问才可能让服务器打开 WPS/文件夹；飞书或远程浏览器一律走下载
+  const hostLocal = ["localhost", "127.0.0.1", "::1", ""].includes(location.hostname);
+  const isLocal = ENV.is_local && hostLocal && !ENV.feishu;
+  const dl = () => { downloadFile(file); };
   bar.appendChild(mkBtn("用 WPS 打开", async () => {
-    if (!isLocal) { dl(); return; }  // 远程：直接下载，Windows 会用本机 WPS 打开 .docx
+    if (!isLocal) { dl(); return; }  // 远程/飞书：下载，本机 Windows 用 WPS 打开 .docx
     try {
       const j = await readJSON(await fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file }) }));
       if (!j.ok) {
@@ -1395,6 +1419,7 @@ function bindImportForm() {
 }
 
 async function init() {
+  try { ENV = await (await fetch("/api/env")).json(); } catch (e) {}
   try { META = await (await fetch("/api/meta")).json(); } catch (e) {}
   await reloadSchemes();
   await reloadStandards();

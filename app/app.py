@@ -18,6 +18,7 @@ def _native_open(path):
 
 import presets as P
 import report_engine as E
+import feishu_auth
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJ_DIR = os.path.join(BASE, "项目")
@@ -27,6 +28,10 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 单次上传上限 200MB
+
+# 飞书网页应用免登（未配置时自动关闭，不影响本地/内网使用）
+FEISHU_CFG = feishu_auth.load_config(BASE)
+feishu_auth.init_app(app, FEISHU_CFG)
 
 SAFE = re.compile(r"[^0-9A-Za-z_\-一-鿿]")
 def safe_name(s):
@@ -58,6 +63,17 @@ def _cache_policy(resp):
 @app.route("/api/health")
 def api_health():
     return jsonify({"ok": True})
+
+@app.route("/api/env")
+def api_env():
+    """前端环境探测：是否飞书免登模式、当前登录人、是否本机访问。"""
+    from flask import session
+    user = session.get("fs_user") or {}
+    return jsonify({
+        "feishu": bool(FEISHU_CFG.ready),
+        "user": user.get("name", ""),
+        "is_local": _is_local_request(),
+    })
 
 @app.route("/api/meta")
 def api_meta():
