@@ -144,8 +144,8 @@ function renderInfo() {
     inp.value = state.info[key] || "";
     inp.oninput = () => {
       state.info[key] = inp.value;
-      // 委托单号 / 样品名称 变化时，自动重算项目名称
-      if (key === "commission_no" || key === "sample_name") autoName();
+      // 委托单号 / 样品型号 变化时，自动重算项目名称
+      if (key === "commission_no" || key === "sample_model") autoName();
       scheduleSave();
     };
     f.appendChild(inp);
@@ -154,11 +154,11 @@ function renderInfo() {
   body.appendChild(grid);
 }
 
-// 项目名称 = 委托单号 + 样品名称 + “试验报告”（自动生成，只读）
+// 项目名称 = 委托单号 + 样品型号 + “试验报告”（自动生成，只读）
 function autoName() {
   const info = state.info || {};
   const c = (info.commission_no || "").trim();
-  const s = (info.sample_name || "").trim();
+  const s = (info.sample_model || "").trim();
   // 两者都空时留空，避免出现只有“试验报告”的目录名
   state.name = (c || s) ? `${c}${s}试验报告` : "";
   const pn = $("#pname");
@@ -472,7 +472,7 @@ function renderOemPicker(t, idx) {
     // 标准若带附图（PSD谱/曲线/表格截图等），复制进本项目的"试验条件配图"
     const nImgs = (e.images || []).length;
     if (nImgs) {
-      if (!state.name) { alert("该标准带了附图，但项目名称还是空的（它由「委托单号 + 样品名称」自动生成）。\n请先完善委托单号和样品名称，再套用。"); }
+      if (!state.name) { alert("该标准带了附图，但项目名称还是空的（它由「委托单号 + 样品型号」自动生成）。\n请先完善委托单号和样品型号，再套用。"); }
       else {
         try {
           const j = await readJSON(await fetch("/api/standards/image/apply", {
@@ -1409,7 +1409,7 @@ function bindImportForm() {
       const preview = Object.keys(fields).map(k => `· ${FORM_FIELD_LABELS[k] || k}：${fields[k]}`).join("\n");
       if (!confirm(`识别到以下信息，将填入首页（覆盖同名已填内容）：\n\n${preview}\n\n确定填入？`)) { status("已取消"); return; }
       Object.assign(state.info, fields);
-      autoName();          // 委托单号/样品名称变了，刷新项目名称
+      autoName();          // 委托单号/样品型号变了，刷新项目名称
       renderInfo();        // 重绘首页
       scheduleSave();
       status(`已从申请单填入 ${Object.keys(fields).length} 项 ✓`);
@@ -1434,8 +1434,8 @@ async function init() {
   bindImportForm();
   // 项目名称自动生成，设为只读，避免手改导致图片目录脱钩
   $("#pname").readOnly = true;
-  $("#pname").placeholder = "自动生成＝委托单号+样品名称+试验报告";
-  $("#pname").title = "项目名称由“委托单号 + 样品名称 + 试验报告”自动生成，不可手改";
+  $("#pname").placeholder = "自动生成＝委托单号+样品型号+试验报告";
+  $("#pname").title = "项目名称由“委托单号 + 样品型号 + 试验报告”自动生成，不可手改";
   $("#btnSave").onclick = doSave;
   $("#btnGen").onclick = generate;
   $("#btnNew").onclick = newProject;
