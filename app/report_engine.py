@@ -700,20 +700,63 @@ def generate(project, out_path):
     return out_path
 
 def refresh_toc_and_fields(path):
-    """按平台把目录页码算好写死进 docx。全部失败也不抛异常。"""
-    # 1) Windows：WPS/Word COM
-    try:
-        import sys as _sys
-        if _sys.platform.startswith("win"):
+    """把目录页码算好写死进 docx。全部失败也不抛异常（报告照常产出，
+    文件已带 updateFields/dirty 标记，用户可手动更新兜底）。"""
+    import sys as _sys
+    # 1) 本机就是 Windows(开发机/单机部署)：直接 WPS/Word COM
+    if _sys.platform.startswith("win"):
+        try:
             update_fields_com(path)
-            return
-    except Exception:
-        pass
-    # 2) Linux/其他：LibreOffice 无头模式（子进程，用带 uno 的 python 跑 toc_lo.py）
+        except Exception:
+            pass
+        return
+    # 2) Linux 服务器：把 docx 发给 Windows 上的“目录更新服务”刷新（秒级）
+    #    配置见项目根目录 toc_service.json（没配置就跳过，不再走 4 分钟的 LibreOffice）
     try:
-        update_toc_libreoffice(path)
+        update_toc_via_service(path)
     except Exception:
         pass
+
+def _load_toc_service_cfg():
+    """读取项目根目录 toc_service.json；环境变量可覆盖。无配置返回 None。"""
+    import json
+    cfg = {}
+    fp = os.path.join(BASE, "toc_service.json")
+    if os.path.exists(fp):
+        try:
+            with open(fp, "r", encoding="utf-8") as f:
+                cfg = json.load(f) or {}
+        except Exception:
+            cfg = {}
+    if os.environ.get("TOC_SERVICE_URL"):
+        cfg["url"] = os.environ["TOC_SERVICE_URL"]
+    if os.environ.get("TOC_SERVICE_TOKEN"):
+        cfg["token"] = os.environ["TOC_SERVICE_TOKEN"]
+    url = (cfg.get("url") or "").strip().rstrip("/")
+    if not url:
+        return None
+    return {"url": url, "token": cfg.get("token", ""),
+            "timeout": int(cfg.get("timeout", 90))}
+
+def update_toc_via_service(path):
+    """把 docx POST 给 Windows 目录更新服务，用返回的成品覆盖原文件。
+    用 urllib(标准库)，不依赖 requests。连不上/失败都静默跳过。"""
+    cfg = _load_toc_service_cfg()
+    if not cfg:
+        return  # 没配置服务，跳过
+    import urllib.request
+    with open(path, "rb") as f:
+        body = f.read()
+    req = urllib.request.Request(cfg["url"] + "/update_toc", data=body, method="POST")
+    req.add_header("Content-Type", "application/octet-stream")
+    if cfg["token"]:
+        req.add_header("X-Token", cfg["token"])
+    with urllib.request.urlopen(req, timeout=cfg["timeout"]) as resp:
+        out = resp.read()
+    # 只有拿到看起来正常的 docx(zip 头 PK)才覆盖，避免把错误页写进文件
+    if out[:2] == b"PK" and len(out) > 1000:
+        with open(path, "wb") as f:
+            f.write(out)
 
 def update_toc_libreoffice(path):
     """用 LibreOffice 无头模式刷新目录/域。需要系统装 libreoffice + python 能 import uno。"""

@@ -20,6 +20,8 @@ __pycache__/
 
 # 飞书应用密钥配置，绝对不能上传（仅上传 .example.json 模板）
 /feishu_config.json
+# 目录更新服务配置（含口令），不上传（仅上传 .example.json 模板）
+/toc_service.json
 
 # 跨进程文件锁的空锁文件
 /构建/.locks/
