@@ -126,29 +126,46 @@ def update_toc(path, soffice_bin=None):
 
         url = uno.systemPathToFileUrl(path)
         log("URL=%s" % url)
-        # 加载参数只留 Hidden，避免无效属性导致加载被拒
-        props = (pv("Hidden", True),)
-        log("加载文档中…")
+        # 关键：不隐藏窗口(headless 本就不弹窗)，这样文档有版面，才能算出页码。
+        # 隐藏窗口(Hidden=True)时目录 update() 会永远卡死。
+        props = (pv("Hidden", False), pv("ReadOnly", False))
+        log("加载文档中(非隐藏)…")
         doc = desktop.loadComponentFromURL(url, "_blank", 0, props)
         if doc is None:
             raise RuntimeError("loadComponentFromURL 返回 None（文档未能打开）")
-        log("文档已加载，更新目录/索引…")
+        log("文档已加载，取控制器/框架…")
 
+        # 用派发命令更新所有目录/索引与域，比直接 model.update() 在无头下靠谱
+        dispatched = False
         try:
-            idxs = doc.getDocumentIndexes()
-            log("索引数量=%d" % idxs.getCount())
-            for i in range(idxs.getCount()):
-                idxs.getByIndex(i).update()
+            ctrl = doc.getCurrentController()
+            frame = ctrl.getFrame() if ctrl is not None else None
+            if frame is not None:
+                dispatcher = smgr.createInstanceWithContext(
+                    "com.sun.star.frame.DispatchHelper", ctx)
+                log("派发 .uno:UpdateAllIndexes …")
+                dispatcher.executeDispatch(frame, ".uno:UpdateAllIndexes", "", 0, ())
+                log("派发 .uno:UpdateFields …")
+                dispatcher.executeDispatch(frame, ".uno:UpdateFields", "", 0, ())
+                dispatched = True
+                log("派发完成")
+            else:
+                log("无控制器/框架，回退到 model.update()")
         except Exception as e:
-            log("更新索引出错(忽略): %s" % e)
-        try:
-            doc.getTextFields().refresh()
-        except Exception as e:
-            log("刷新文本域出错(忽略): %s" % e)
-        try:
-            doc.refresh()
-        except Exception as e:
-            log("全局刷新出错(忽略): %s" % e)
+            log("派发出错，回退 model.update(): %s" % e)
+
+        if not dispatched:
+            try:
+                idxs = doc.getDocumentIndexes()
+                log("索引数量=%d，逐个 update()…" % idxs.getCount())
+                for i in range(idxs.getCount()):
+                    idxs.getByIndex(i).update()
+            except Exception as e:
+                log("更新索引出错(忽略): %s" % e)
+            try:
+                doc.getTextFields().refresh()
+            except Exception as e:
+                log("刷新文本域出错(忽略): %s" % e)
 
         log("保存回 docx…")
         doc.storeToURL(url, (pv("FilterName", "MS Word 2007 XML"), pv("Overwrite", True)))
