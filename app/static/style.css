@@ -47,6 +47,7 @@ main { max-width: 980px; margin: 18px auto; padding: 0 16px 80px; }
 /* 生成成功弹窗 */
 .modal.result-modal { width: 92vw; max-width: 560px; height: auto; }
 .modal.result-modal .modal-head b { color: #16733a; }
+.modal.result-modal .modal-head .modal-close { margin-left: auto; }
 .result-modal-body { padding: 22px 24px 24px; }
 .result-file { font-size: 14px; color: #223; line-height: 1.6; word-break: break-all;
   background: #f4f9f5; border: 1px solid #cfebd8; border-radius: 8px; padding: 12px 14px; margin-bottom: 20px; }
