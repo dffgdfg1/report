@@ -160,7 +160,7 @@ if __name__ == "__main__":
     print(" 监听: %s:%d" % (args.host, args.port))
     for ip in _lan_ips():
         print("   局域网地址: http://%s:%d" % (ip, args.port))
-    print(" 口令: %s" % ("(已设置)" if TOKEN else "(未设置——建议设一个)"))
+    print(" 口令: %s" % ("(已设置)" if TOKEN else "(局域网免口令)"))
     print(" 让此窗口保持开着；虚拟机会把报告发到这里刷新目录。")
     print("=" * 56)
     # 单线程即可：COM 本就串行；关掉 reloader 防重复起进程

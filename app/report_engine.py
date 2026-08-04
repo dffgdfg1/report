@@ -717,8 +717,13 @@ def refresh_toc_and_fields(path):
     except Exception:
         pass
 
+# 默认指向那台装了 WPS 的 Windows（192.168.24.68）。
+# 换机器 IP 时，改这里，或在项目根放 toc_service.json / 设环境变量覆盖，都行。
+DEFAULT_TOC_SERVICE_URL = "http://192.168.24.68:8765"
+
 def _load_toc_service_cfg():
-    """读取项目根目录 toc_service.json；环境变量可覆盖。无配置返回 None。"""
+    """确定目录更新服务地址。优先级：环境变量 > toc_service.json > 内置默认。
+    默认已内置，所以 VM 上零配置即可用；连不上会静默跳过。"""
     import json
     cfg = {}
     fp = os.path.join(BASE, "toc_service.json")
@@ -732,7 +737,7 @@ def _load_toc_service_cfg():
         cfg["url"] = os.environ["TOC_SERVICE_URL"]
     if os.environ.get("TOC_SERVICE_TOKEN"):
         cfg["token"] = os.environ["TOC_SERVICE_TOKEN"]
-    url = (cfg.get("url") or "").strip().rstrip("/")
+    url = (cfg.get("url") or DEFAULT_TOC_SERVICE_URL or "").strip().rstrip("/")
     if not url:
         return None
     return {"url": url, "token": cfg.get("token", ""),
