@@ -113,13 +113,25 @@ def update_toc(path, soffice_bin=None):
         smgr = ctx.ServiceManager
         desktop = smgr.createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
 
-        url = uno.systemPathToFileUrl(path)
-        # 加载参数：隐藏窗口 + 禁止跑宏 + 不弹更新链接对话框(避免 headless 卡死)
         def pv(n, v):
             p = PropertyValue(); p.Name = n; p.Value = v; return p
-        props = (pv("Hidden", True), pv("MacroExecutionMode", 0), pv("UpdateDocMode", 0))
+
+        # 清掉可能残留的锁文件（之前崩溃的 soffice 留下的），否则无头模式会拒开
+        d, base = os.path.split(path)
+        lock = os.path.join(d, ".~lock.%s#" % base)
+        if os.path.exists(lock):
+            log("发现残留锁文件，删除: %s" % lock)
+            try: os.remove(lock)
+            except Exception as e: log("删锁文件失败(忽略): %s" % e)
+
+        url = uno.systemPathToFileUrl(path)
+        log("URL=%s" % url)
+        # 加载参数只留 Hidden，避免无效属性导致加载被拒
+        props = (pv("Hidden", True),)
         log("加载文档中…")
         doc = desktop.loadComponentFromURL(url, "_blank", 0, props)
+        if doc is None:
+            raise RuntimeError("loadComponentFromURL 返回 None（文档未能打开）")
         log("文档已加载，更新目录/索引…")
 
         try:
