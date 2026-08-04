@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MINEYE报告编辑助手</title>
+<title>MINIEYE报告编辑助手</title>
 <link rel="icon" type="image/png" href="/static/logo.png?v=12">
-<link rel="stylesheet" href="/static/style.css?v=26">
+<link rel="stylesheet" href="/static/style.css?v=27">
 </head>
 <body>
 <header>
   <img class="logo" src="/static/logo.png?v=12" alt="MINEYE">
-  <h1>MINEYE报告编辑助手</h1>
+  <h1>MINIEYE报告编辑助手</h1>
   <input class="pname" id="pname" placeholder="项目名称（如报告编号）">
   <button class="btn-ghost" id="btnOpen">打开…</button>
   <button class="btn-ghost" id="btnNew">新建</button>
@@ -32,6 +32,20 @@
   </div>
 
   <div id="resultBar" class="result-bar" style="display:none"></div>
+
+  <!-- 生成成功弹窗 -->
+  <div class="modal-mask" id="resultModal" style="display:none">
+    <div class="modal result-modal">
+      <div class="modal-head">
+        <b>✓ 报告已生成</b>
+        <span class="modal-close" id="resultClose">×</span>
+      </div>
+      <div class="result-modal-body">
+        <div class="result-file" id="resultFile"></div>
+        <div class="result-actions" id="resultActions"></div>
+      </div>
+    </div>
+  </div>
 
   <div id="testList"></div>
 
@@ -113,6 +127,6 @@
 <input type="file" id="devFile" accept=".csv" style="display:none">
 
 <div class="toast" id="toast"></div>
-<script src="/static/app.js?v=34"></script>
+<script src="/static/app.js?v=35"></script>
 </body>
 </html>

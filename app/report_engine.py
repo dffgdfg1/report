@@ -649,11 +649,24 @@ def build_dynamic_toc(doc):
     p.append(run_with(it))
     fs = p.makeelement(W + 'fldChar', {}); fs.set(qn('w:fldCharType'), "separate")
     p.append(run_with(fs))
-    t = p.makeelement(W + 't', {}); t.set(qn('xml:space'), "preserve"); t.text = "（打开后右键此处选“更新域”即可显示页码）"
+    t = p.makeelement(W + 't', {}); t.set(qn('xml:space'), "preserve"); t.text = "（打开文档时选“是/更新”即自动生成页码；若未提示，右键此处选“更新域”）"
     p.append(run_with(t))
     fe = p.makeelement(W + 'fldChar', {}); fe.set(qn('w:fldCharType'), "end")
     p.append(run_with(fe))
     toc_head.addnext(p)
+
+def set_update_fields_on_open(doc):
+    """在文档设置里写入 <w:updateFields val="true"/>，
+    让 Word/WPS 打开文档时自动更新所有域（含目录页码）。
+    这是跨平台方案：不依赖服务器装 Office/COM，用户一打开即自动刷新。"""
+    settings = doc.settings.element
+    # 已存在就复用，避免重复
+    uf = settings.find(W + 'updateFields')
+    if uf is None:
+        uf = settings.makeelement(W + 'updateFields', {})
+        # 按 OOXML schema，updateFields 应排在 settings 靠前位置，插到最前最稳妥
+        settings.insert(0, uf)
+    uf.set(qn('w:val'), "true")
 # ---------- 主入口 ----------
 def generate(project, out_path):
     """project: {info:{...}, tests:[{...}, ...]}  ->  生成 out_path (.docx)"""
@@ -673,9 +686,13 @@ def generate(project, out_path):
         t["sample_name"] = info.get("sample_name", "")
         build_section(doc, donor, t)
 
+    # 让 Word/WPS 打开文档时自动更新目录页码（跨平台，不依赖服务器 Office）
+    set_update_fields_on_open(doc)
+
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     doc.save(out_path)
-    # 生成后刷新目录域与页码（COM，失败不影响出报告）
+    # 若服务器恰好装了 WPS/Word（Windows），再用 COM 直接把页码刷进去，
+    # 用户打开就已是最终页码；Linux 上此步会失败，靠上面的 updateFields 兜底。
     try:
         update_fields_com(out_path)
     except Exception:

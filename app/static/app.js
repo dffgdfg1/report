@@ -867,25 +867,26 @@ function downloadFile(file) {
   window.location = url;
 }
 
-// 生成成功后：显示"打开/打开文件夹/下载"操作条
+// 生成成功后：弹窗展示结果 + 下载/打开操作
 function showResultActions(file, size) {
   const mb = (size / 1048576).toFixed(1);
-  const bar = $("#resultBar");
-  if (!bar) { // 兜底：没有操作条元素时退回下载确认
+  const mask = $("#resultModal"), fileBox = $("#resultFile"), actions = $("#resultActions");
+  if (!mask || !fileBox || !actions) { // 兜底：无弹窗元素时退回下载确认
     if (confirm(`报告已生成（${mb} MB）。是否下载？`)) window.location = "/api/download?file=" + encodeURIComponent(file);
     return;
   }
-  bar.innerHTML = "";
-  bar.style.display = "flex";
-  const info = el("span", "result-info", `✓ 报告已生成（${mb} MB）：${file}`);
-  bar.appendChild(info);
-  const mkBtn = (label, fn) => { const b = el("button", "btn-mini"); b.textContent = label; b.onclick = fn; return b; };
+  fileBox.innerHTML = `📄 ${escAttr(file)}<span class="fsize">（${mb} MB）</span>`;
+  actions.innerHTML = "";
+  const close = () => { mask.style.display = "none"; };
+  const mkBtn = (label, cls, fn) => { const b = el("button", cls); b.textContent = label; b.onclick = fn; return b; };
   // 本机访问才可能让服务器打开 WPS/文件夹；飞书或远程浏览器一律走下载
   const hostLocal = ["localhost", "127.0.0.1", "::1", ""].includes(location.hostname);
   const isLocal = ENV.is_local && hostLocal && !ENV.feishu;
   const dl = () => { downloadFile(file); };
-  bar.appendChild(mkBtn("用 WPS 打开", async () => {
-    if (!isLocal) { dl(); return; }  // 远程/飞书：下载，本机 Windows 用 WPS 打开 .docx
+  // 主按钮：下载（远程用户最常用）
+  actions.appendChild(mkBtn("下载报告", "btn-primary", dl));
+  actions.appendChild(mkBtn("用 WPS 打开", "btn-ghost", async () => {
+    if (!isLocal) { dl(); return; }  // 远程/飞书：下载；本机 Windows 用 WPS 打开 .docx
     try {
       const j = await readJSON(await fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file }) }));
       if (!j.ok) {
@@ -895,12 +896,18 @@ function showResultActions(file, size) {
     } catch (e) { alert(e.message); }
   }));
   if (isLocal) {
-    bar.appendChild(mkBtn("打开所在文件夹", async () => {
+    actions.appendChild(mkBtn("打开所在文件夹", "btn-ghost", async () => {
       try { await fetch("/api/open_folder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file }) }); }
       catch (e) { alert(e.message); }
     }));
   }
-  bar.appendChild(mkBtn("下载", dl));
+  // 关闭：点×、点遮罩空白处、Esc
+  $("#resultClose").onclick = close;
+  mask.onclick = (e) => { if (e.target === mask) close(); };
+  document.addEventListener("keydown", function esc(e) {
+    if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc); }
+  });
+  mask.style.display = "flex";
 }
 
 // 生成前必填校验：返回问题列表
