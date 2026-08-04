@@ -959,7 +959,7 @@ async function generate() {
 // ============ 初始化 ============
 function addTest() {
   const t = { title: "", sample_no: "", standard: "", start_date: "", end_date: "", overall_result: "合格",
-    sample_name: state.info.sample_name || "", env: "", test_date: "", condition: "", requirement: "",
+    sample_name: state.info.sample_name || "", env: "18℃-28℃、25%RH-75%RH", test_date: "", condition: "", requirement: "",
     equipment: [], samples: [{ no: "1#", result: "", conclusion: "合格" }],
     image_groups: [{ title: "试验前图片", images: [] }, { title: "试验中图片", images: [] }, { title: "试验后图片", images: [] }] };
   if (META.types.length) applyPreset(t, META.types[0]);
