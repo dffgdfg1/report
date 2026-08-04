@@ -19,20 +19,24 @@ echo Checking components (first run may take a moment)...
 "%PY%" -c "import flask" 2>nul || "%PY%" -m pip install flask -q
 "%PY%" -c "import win32com.client" 2>nul || "%PY%" -m pip install pywin32 -q
 
-set "APPDIR=%~dp0app"
-set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-set "VBS=%STARTUP%\TOCService.vbs"
-> "%VBS%" echo Set sh = CreateObject("WScript.Shell")
->> "%VBS%" echo sh.Run """%PYW%"" ""%APPDIR%\toc_service.py"" --port 8765", 0, False
+set "SCRIPT=%~dp0app\toc_service.py"
 
-wscript "%VBS%"
+rem register auto-start at logon (HKCU Run key: no admin needed, not blocked by AV)
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v TOCUpdateService /t REG_SZ /d "\"%PYW%\" \"%SCRIPT%\" --port 8765" /f >nul
+if errorlevel 1 (
+  echo [X] Failed to write auto-start entry.
+  pause & exit /b
+)
+
+rem start it right now, hidden (pythonw = no console window)
+start "" "%PYW%" "%SCRIPT%" --port 8765
 
 echo.
-echo [OK] Auto-start installed. The TOC service now runs HIDDEN in the
-echo      background, and starts automatically every time you log in.
+echo [OK] Auto-start installed. The TOC service is now running HIDDEN in
+echo      the background, and will start automatically after every logon.
 echo      Port: 8765
 echo.
-echo      To stop / remove it later, double-click the file named:
-echo      qu-xiao-kai-ji-zi-qi  ("取消开机自启.bat")
+echo      Check it works:  open  http://192.168.24.68:8765/health  (shows "ok")
+echo      To remove it:    double-click  "取消开机自启.bat"
 echo.
 pause
