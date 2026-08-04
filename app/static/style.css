@@ -176,9 +176,13 @@ table.rows input:focus { outline: 1px solid #9bf; background: #fff; }
 
 /* 试验设备：可搜索下拉 */
 .equip-name { position: relative; }
-.equip-name .equip-search { width: 100%; box-sizing: border-box; }
-.equip-dd { position: absolute; z-index: 30; left: 0; right: 0; top: 100%; margin-top: 2px; background: #fff; border: 1px solid #cfd7e6; border-radius: 7px; box-shadow: 0 6px 20px rgba(30,50,90,.16); max-height: 260px; overflow: auto; }
-.equip-dd-item { padding: 6px 10px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #f2f4f8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.equip-name .equip-search { width: 100%; box-sizing: border-box; padding-left: 28px;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='7'/%3E%3Cline x1='21' y1='21' x2='15.8' y2='15.8'/%3E%3C/svg%3E") no-repeat 8px center;
+  background-size: 14px; }
+.equip-name .equip-search:focus { border-color: #1f6feb; box-shadow: 0 0 0 2px rgba(31,111,235,.15); }
+/* 下拉框：不再被窄列限制，按内容自适应加宽，型号/编号完整可见 */
+.equip-dd { position: absolute; z-index: 30; left: 0; right: auto; top: 100%; margin-top: 2px; min-width: 100%; width: max-content; max-width: 460px; background: #fff; border: 1px solid #cfd7e6; border-radius: 7px; box-shadow: 0 6px 20px rgba(30,50,90,.16); max-height: 300px; overflow-y: auto; }
+.equip-dd-item { padding: 7px 12px; font-size: 13px; line-height: 1.4; cursor: pointer; border-bottom: 1px solid #f2f4f8; white-space: normal; word-break: break-word; }
 .equip-dd-item:last-child { border-bottom: none; }
 .equip-dd-item:hover { background: #f0f6ff; }
 .equip-dd-item .m { color: #5a6b8c; }
