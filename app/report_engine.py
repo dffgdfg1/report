@@ -692,13 +692,76 @@ def generate(project, out_path):
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     doc.save(out_path)
-    # 若服务器恰好装了 WPS/Word（Windows），再用 COM 直接把页码刷进去，
-    # 用户打开就已是最终页码；Linux 上此步会失败，靠上面的 updateFields 兜底。
+    # 生成后把目录页码算好写死进文件，用户打开即成品：
+    #  - Windows(开发机)：用 WPS/Word COM
+    #  - Linux(服务器)：用 LibreOffice 无头模式
+    # 两者都失败也不影响出报告，文件里已带 updateFields/dirty 标记作兜底。
+    refresh_toc_and_fields(out_path)
+    return out_path
+
+def refresh_toc_and_fields(path):
+    """按平台把目录页码算好写死进 docx。全部失败也不抛异常。"""
+    # 1) Windows：WPS/Word COM
     try:
-        update_fields_com(out_path)
+        import sys as _sys
+        if _sys.platform.startswith("win"):
+            update_fields_com(path)
+            return
     except Exception:
         pass
-    return out_path
+    # 2) Linux/其他：LibreOffice 无头模式（子进程，用带 uno 的 python 跑 toc_lo.py）
+    try:
+        update_toc_libreoffice(path)
+    except Exception:
+        pass
+
+def update_toc_libreoffice(path):
+    """用 LibreOffice 无头模式刷新目录/域。需要系统装 libreoffice + python 能 import uno。"""
+    import subprocess, shutil
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "toc_lo.py")
+    if not os.path.exists(script):
+        return
+    soffice = None
+    for name in ("soffice", "libreoffice"):
+        soffice = shutil.which(name)
+        if soffice:
+            break
+    if not soffice:
+        for p in ("/usr/bin/soffice", "/usr/bin/libreoffice",
+                  "/opt/libreoffice/program/soffice", "/snap/bin/libreoffice"):
+            if os.path.exists(p):
+                soffice = p; break
+    if not soffice:
+        return  # 没装 LibreOffice，静默跳过（靠 updateFields/dirty 兜底）
+    # 找一个能 import uno 的 python：优先系统 python3（装了 python3-uno），
+    # 再试 LibreOffice 自带 python，最后退回当前解释器。
+    candidates = ["/usr/bin/python3", "python3",
+                  "/usr/lib/libreoffice/program/python",
+                  "/opt/libreoffice/program/python"]
+    import sys as _sys
+    candidates.append(_sys.executable)
+    py = None
+    for c in candidates:
+        # c 含路径分隔符 → 当成绝对/相对路径，必须存在；否则当成命令名去 PATH 里找
+        if os.path.sep in c or "/" in c:
+            exe = c if os.path.exists(c) else None
+        else:
+            exe = shutil.which(c)
+        if not exe:
+            continue
+        try:
+            r = subprocess.run([exe, "-c", "import uno"], capture_output=True, timeout=20)
+            if r.returncode == 0:
+                py = exe; break
+        except Exception:
+            continue
+    if not py:
+        return  # 没有能用的 uno，跳过
+    try:
+        subprocess.run([py, script, os.path.abspath(path), soffice],
+                       capture_output=True, timeout=180)
+    except Exception:
+        pass
 
 def update_fields_com(path):
     """用 WPS/Word COM 打开文档，更新所有域(含目录)与页码后保存。
