@@ -99,9 +99,9 @@ def parse_form(text):
     # 验证阶段（单选）
     vline = find("验证阶段")
     if vline:
-        sel, tail = _selected_radio(vline)
+        sel, _ = _selected_radio(vline)   # 只取选中的选项，后面的说明文字不要
         if sel:
-            out["verify_phase"] = (sel + ("：" + tail if tail else "")) if sel == "其它" else sel
+            out["verify_phase"] = sel
     # 委托方名称 / 地址（勾选）
     cn = _strip_opt(_checked_value(lines, "委托方名称")); ca = _strip_opt(_checked_value(lines, "委托方地址"))
     if cn: out["client_name"] = cn
