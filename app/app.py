@@ -994,18 +994,11 @@ def api_devices_delete():
 
 @app.route("/api/next_report_no")
 def api_next_report_no():
-    """今天的下一个报告编号：YJ/SYBG-<今天yyyymmdd><3位序号>。
-    序号 = 生成记录里今天同前缀编号的最大值 +1；今天还没生成过则 001。"""
-    import datetime, re
+    """今天的报告编号：YJ/SYBG-<今天yyyymmdd>001。
+    后三位固定为 001，不随生成记录递增。"""
+    import datetime
     today = datetime.date.today().strftime("%Y%m%d")
-    prefix = "YJ/SYBG-" + today
-    pat = re.compile(r"^YJ/SYBG-" + today + r"(\d{3})$")
-    maxseq = 0
-    for rec in _load_genlog():
-        m = pat.match((rec or {}).get("report_no", "") or "")
-        if m:
-            maxseq = max(maxseq, int(m.group(1)))
-    return jsonify({"report_no": "%s%03d" % (prefix, maxseq + 1)})
+    return jsonify({"report_no": "YJ/SYBG-" + today + "001"})
 
 @app.route("/api/import_form", methods=["POST"])
 def api_import_form():

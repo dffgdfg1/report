@@ -59,6 +59,8 @@ def _checked_value(lines, label, maxscan=4):
 
 # 末尾体积标注，如 (249KB) / (1.2 MB)，提取附件名时去掉
 _SIZE_TAIL = re.compile(r"\s*\([\d.]+\s*[KMGkmg]?B\)\s*$")
+# 文件后缀，如 .xlsx / .xls / .pdf / .docx，拼检测项目/依据时去掉
+_EXT_TAIL = re.compile(r"\.(?:xlsx?|docx?|pdf|pptx?|csv|txt)\s*$", re.I)
 def _attachment_name(lines):
     """从“附件”那行取附件文件名：去行首“附件”标签、去 PUA、去末尾体积标注。"""
     for ln in lines:
@@ -116,9 +118,10 @@ def parse_form(text):
         mn = _strip_opt(_line_after(lines, "制造商名称")); ma = _strip_opt(_line_after(lines, "制造商地址"))
         if mn: out["maker_name"] = mn
         if ma: out["maker_addr"] = ma
-    # 检测项目 / 检测依据 = “参考”+附件全名（拼接，不带“+”号）
+    # 检测项目 / 检测依据 = “参考”+附件名（去掉文件后缀，如 .xlsx/.pdf/.docx）
     att = _attachment_name(lines)
     if att:
+        att = _EXT_TAIL.sub("", att)
         out["test_items"] = "参考" + att
         out["test_basis"] = "参考" + att
     return out
