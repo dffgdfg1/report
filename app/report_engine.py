@@ -644,6 +644,7 @@ def build_dynamic_toc(doc):
         r.append(child)
         return r
     fb = p.makeelement(W + 'fldChar', {}); fb.set(qn('w:fldCharType'), "begin")
+    fb.set(qn('w:dirty'), "true")   # 标记目录域为“脏”，WPS/Word 打开时会自动重算页码
     p.append(run_with(fb))
     it = p.makeelement(W + 'instrText', {}); it.set(qn('xml:space'), "preserve"); it.text = ' TOC \\o "1-1" \\h \\z \\u '
     p.append(run_with(it))

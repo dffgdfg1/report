@@ -883,18 +883,9 @@ function showResultActions(file, size) {
   const hostLocal = ["localhost", "127.0.0.1", "::1", ""].includes(location.hostname);
   const isLocal = ENV.is_local && hostLocal && !ENV.feishu;
   const dl = () => { downloadFile(file); };
-  // 主按钮：下载（远程用户最常用）
+  // 主按钮：下载报告（服务器在 Linux，远程用户无法让服务器开 WPS，一律下载）
   actions.appendChild(mkBtn("下载报告", "btn-primary", dl));
-  actions.appendChild(mkBtn("用 WPS 打开", "btn-ghost", async () => {
-    if (!isLocal) { dl(); return; }  // 远程/飞书：下载；本机 Windows 用 WPS 打开 .docx
-    try {
-      const j = await readJSON(await fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file }) }));
-      if (!j.ok) {
-        if (j.remote) { dl(); return; }  // 服务器判定为远程访问，退回下载
-        alert("打开失败：" + (j.error || "") + "\n可改用“打开文件夹”手动打开。");
-      }
-    } catch (e) { alert(e.message); }
-  }));
+  // 仅本机(开发机)访问时才提供“打开所在文件夹”，远程访问不显示
   if (isLocal) {
     actions.appendChild(mkBtn("打开所在文件夹", "btn-ghost", async () => {
       try { await fetch("/api/open_folder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file }) }); }
