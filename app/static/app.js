@@ -1392,6 +1392,7 @@ const FORM_FIELD_LABELS = {
   sample_qty: "样品数量",
   verify_phase: "验证阶段", client_name: "委托方名称", client_addr: "委托方地址",
   maker_name: "制造商名称", maker_addr: "制造商地址", commission_no: "委托单号（申请编号）",
+  test_items: "检测项目", test_basis: "检测依据",
 };
 function bindImportForm() {
   const btn = $("#btnImportForm"), fi = $("#formFile");

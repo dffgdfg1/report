@@ -14,6 +14,12 @@ _PUA = re.compile(r"[-]")
 def _clean(s):
     return _PUA.sub("", s or "").strip()
 
+# 勾选式字段里，被选中的往往是“其他/其它”这个填空项，行首会带上选项标签。
+# 真正内容在标签之后，这里把开头的“其他/其它”及紧跟的标点、空格剥掉。
+_OPT_PREFIX = re.compile(r"^其[他它][\s.．、,，:：]*")
+def _strip_opt(s):
+    return _OPT_PREFIX.sub("", s or "").strip()
+
 def _line_after(lines, label):
     """返回以 label 开头那行的下一行内容（清理后）。"""
     for i, ln in enumerate(lines):
@@ -51,6 +57,17 @@ def _checked_value(lines, label, maxscan=4):
             return first
     return ""
 
+# 末尾体积标注，如 (249KB) / (1.2 MB)，提取附件名时去掉
+_SIZE_TAIL = re.compile(r"\s*\([\d.]+\s*[KMGkmg]?B\)\s*$")
+def _attachment_name(lines):
+    """从“附件”那行取附件文件名：去行首“附件”标签、去 PUA、去末尾体积标注。"""
+    for ln in lines:
+        s = ln.strip()
+        if s.startswith("附件"):
+            s = _clean(s[len("附件"):])          # 去标签 + PUA
+            return _SIZE_TAIL.sub("", s).strip()  # 去 (249KB) 之类
+    return ""
+
 def parse_form(text):
     """输入 PDF 首页文字，返回 {字段: 值}（只含解析到的，键与前端 info 一致）。"""
     lines = text.split("\n")
@@ -86,7 +103,7 @@ def parse_form(text):
         if sel:
             out["verify_phase"] = (sel + ("：" + tail if tail else "")) if sel == "其它" else sel
     # 委托方名称 / 地址（勾选）
-    cn = _checked_value(lines, "委托方名称"); ca = _checked_value(lines, "委托方地址")
+    cn = _strip_opt(_checked_value(lines, "委托方名称")); ca = _strip_opt(_checked_value(lines, "委托方地址"))
     if cn: out["client_name"] = cn
     if ca: out["client_addr"] = ca
     # 制造商：勾了“同委托方”则同委托方，否则读独立行
@@ -96,9 +113,14 @@ def parse_form(text):
         if cn: out["maker_name"] = cn
         if ca: out["maker_addr"] = ca
     else:
-        mn = _line_after(lines, "制造商名称"); ma = _line_after(lines, "制造商地址")
+        mn = _strip_opt(_line_after(lines, "制造商名称")); ma = _strip_opt(_line_after(lines, "制造商地址"))
         if mn: out["maker_name"] = mn
         if ma: out["maker_addr"] = ma
+    # 检测项目 / 检测依据 = “参考”+附件全名（拼接，不带“+”号）
+    att = _attachment_name(lines)
+    if att:
+        out["test_items"] = "参考" + att
+        out["test_basis"] = "参考" + att
     return out
 
 def parse_pdf(path_or_bytes):
