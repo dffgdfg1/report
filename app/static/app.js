@@ -630,6 +630,7 @@ function renderSamples(t) {
   const tbl = el("table", "rows");
   tbl.innerHTML = `<tr><th style="width:70px">样品编号</th><th>试验结果</th><th style="width:70px">结论</th><th style="width:40px"></th></tr>`;
   t.samples.forEach((s, i) => {
+    if (!s.result || !s.result.trim()) s.result = DEFAULT_SAMPLE_RESULT;  // 结果空则自动填默认文案（含旧数据）
     const tr = el("tr");
     ["no", "result", "conclusion"].forEach(k => {
       const td = el("td");
