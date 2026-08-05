@@ -64,6 +64,9 @@ table.rows th, table.rows td { border: 1px solid #e3e3ea; padding: 4px 6px; text
 table.rows th { background: #f6f7fb; font-weight: 600; color: #556; }
 table.rows input { width: 100%; border: none; padding: 4px; font-size: 13px; background: transparent; }
 table.rows input:focus { outline: 1px solid #9bf; background: #fff; }
+table.rows textarea { width: 100%; box-sizing: border-box; border: none; padding: 4px; font-size: 13px; line-height: 1.6; background: transparent; resize: vertical; font-family: inherit; }
+table.rows textarea:focus { outline: 1px solid #9bf; background: #fff; }
+table.rows td { vertical-align: top; }
 .test-card { border-left: 4px solid #1f6feb; }
 .imggroup { border: 1px solid #eee; border-radius: 6px; padding: 10px; margin: 8px 0; background: #fafbff; }
 .imggroup .gtitle { font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #456; }

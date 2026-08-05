@@ -615,6 +615,13 @@ function renderEquip(t) {
   return wrap;
 }
 
+// 试验结果默认文案（新样品行自动填充，可手改）
+const DEFAULT_SAMPLE_RESULT =
+  "试验前，样品外观正常，CAN报文正常滚动，对应摄像头正常出图；\n" +
+  "试验中，样品外观正常，CAN报文正常滚动，对应摄像头正常出图；\n" +
+  "试验后，样品外观正常，CAN报文正常滚动，对应摄像头正常出图；\n" +
+  "符合试验要求。";
+
 // —— 试验结论（按样品） ——
 function renderSamples(t) {
   if (!t.samples) t.samples = [];
@@ -625,7 +632,11 @@ function renderSamples(t) {
   t.samples.forEach((s, i) => {
     const tr = el("tr");
     ["no", "result", "conclusion"].forEach(k => {
-      const td = el("td"); const inp = el("input"); inp.value = s[k] || "";
+      const td = el("td");
+      // 试验结果可能是多行文字，用 textarea 以保留换行；编号/结论仍用单行 input
+      const inp = el(k === "result" ? "textarea" : "input");
+      if (k === "result") inp.rows = 4;
+      inp.value = s[k] || "";
       inp.oninput = () => { s[k] = inp.value; scheduleSave(); };
       td.appendChild(inp); tr.appendChild(td);
     });
@@ -636,7 +647,7 @@ function renderSamples(t) {
   });
   wrap.appendChild(tbl);
   const add = el("button", "btn-mini", "＋ 加一个样品");
-  add.onclick = () => { t.samples.push({ no: "", result: "", conclusion: "合格" }); rerenderTest(t); };
+  add.onclick = () => { t.samples.push({ no: "", result: DEFAULT_SAMPLE_RESULT, conclusion: "合格" }); rerenderTest(t); };
   const line = el("div", "rowline"); line.appendChild(add); wrap.appendChild(line);
   return wrap;
 }
@@ -958,7 +969,7 @@ async function generate() {
 function addTest() {
   const t = { title: "", sample_no: "", standard: "", start_date: "", end_date: "", overall_result: "合格",
     sample_name: state.info.sample_name || "", env: "18℃-28℃、25%RH-75%RH", test_date: "", condition: "", requirement: "",
-    equipment: [], samples: [{ no: "1#", result: "", conclusion: "合格" }],
+    equipment: [], samples: [{ no: "1#", result: DEFAULT_SAMPLE_RESULT, conclusion: "合格" }],
     image_groups: [{ title: "试验前图片", images: [] }, { title: "试验中图片", images: [] }, { title: "试验后图片", images: [] }] };
   if (META.types.length) applyPreset(t, META.types[0]);
   state.tests.push(t);
