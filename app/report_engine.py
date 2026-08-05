@@ -90,11 +90,12 @@ def set_tc_text(tc, text, align=None, bold=False):
     target_p = first_p
     for i, line in enumerate(lines):
         if i > 0:
+            prev_p = target_p
             target_p = clone(first_p)
             if target_p.find(W + 'r') is not None:
                 for r in target_p.findall(W + 'r'):
                     target_p.remove(r)
-            first_p.addnext(target_p)
+            prev_p.addnext(target_p)  # 接在上一段之后，保持行序(原来固定接first_p会倒序)
         if align:
             _set_para_align(target_p, align)
         r = target_p.makeelement(W + 'r', {})

@@ -159,8 +159,9 @@ function autoName() {
   const info = state.info || {};
   const c = (info.commission_no || "").trim();
   const s = (info.sample_model || "").trim();
-  // 两者都空时留空，避免出现只有“试验报告”的目录名
-  state.name = (c || s) ? `${c}${s}试验报告` : "";
+  // 委托单号与样品型号之间用“-”连接；某一项为空时不留多余的横杠
+  const head = [c, s].filter(Boolean).join("-");
+  state.name = head ? `${head}试验报告` : "";
   const pn = $("#pname");
   if (pn) pn.value = state.name;
 }
@@ -1446,8 +1447,8 @@ async function init() {
   bindImportForm();
   // 项目名称自动生成，设为只读，避免手改导致图片目录脱钩
   $("#pname").readOnly = true;
-  $("#pname").placeholder = "自动生成＝委托单号+样品型号+试验报告";
-  $("#pname").title = "项目名称由“委托单号 + 样品型号 + 试验报告”自动生成，不可手改";
+  $("#pname").placeholder = "自动生成＝委托单号-样品型号+试验报告";
+  $("#pname").title = "项目名称由“委托单号 - 样品型号 + 试验报告”自动生成，不可手改";
   $("#btnSave").onclick = doSave;
   $("#btnGen").onclick = generate;
   $("#btnNew").onclick = newProject;
