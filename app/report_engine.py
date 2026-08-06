@@ -85,7 +85,9 @@ def set_tc_text(tc, text, align=None, bold=False):
     for r in first_p.findall(W + 'r'):
         first_p.remove(r)
     # 记录段落属性 pPr（保留对齐等）
-    lines = str(text).split("\n")
+    # 先统一换行符：\r\n 或孤立 \r（老Mac/部分Excel/WPS粘贴产生）都归一为 \n，
+    # 否则 split("\n") 认不出孤立 \r，多行会被连成一行（库里pre-wrap能显示、报告却变横排的根因）
+    lines = str(text).replace("\r\n", "\n").replace("\r", "\n").split("\n")
     ppr = first_p.find(W + 'pPr')
     target_p = first_p
     for i, line in enumerate(lines):
