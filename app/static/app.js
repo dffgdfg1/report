@@ -669,9 +669,9 @@ function renderConditionImages(t) {
   wrap.appendChild(el("div", "subhead", "试验条件配图（可选，插在“试验条件”下方）"));
   const dz = el("div", "dropzone", "<div class='dz-icon'>🖼️</div><b>把试验条件相关图片拖到这里</b><br>或点击此区域选择，也可截图后按 Ctrl+V 粘贴<br><span style='font-size:12px;color:#a0a8bb'>仅支持图片，可多选</span>");
   const fi = el("input"); fi.type = "file"; fi.accept = "image/*"; fi.multiple = true; fi.style.display = "none";
-  const setTgt = () => { PASTE_TARGET = { t, arr: t.condition_images }; };
-  dz.onclick = () => { setTgt(); fi.click(); };
-  dz.onmousedown = setTgt;
+  // 鼠标移入即设为粘贴目标（无需点击）；点击仍然只是打开选文件对话框
+  dz.onmouseenter = () => { PASTE_TARGET = { t, arr: t.condition_images, dz }; setPasteHint(dz); };
+  dz.onclick = () => fi.click();
   fi.onchange = () => handleFiles(fi.files, t, t.condition_images);
   dz.ondragover = (e) => { e.preventDefault(); dz.classList.add("over"); };
   dz.ondragleave = () => dz.classList.remove("over");
@@ -726,9 +726,9 @@ function renderImageGroup(t, g, gi) {
   // 拖放区
   const dz = el("div", "dropzone", "<div class='dz-icon'>📷</div><b>把照片拖到这里</b><br>或点击此区域选择，也可截图后按 Ctrl+V 粘贴（可多选）");
   const fileInput = el("input"); fileInput.type = "file"; fileInput.accept = "image/*"; fileInput.multiple = true; fileInput.style.display = "none";
-  const setTgt = () => { if (!g.images) g.images = []; PASTE_TARGET = { t, arr: g.images }; };
-  dz.onclick = () => { setTgt(); fileInput.click(); };
-  dz.onmousedown = setTgt;
+  // 鼠标移入即设为粘贴目标（无需点击）；点击仍然只是打开选文件对话框
+  dz.onmouseenter = () => { if (!g.images) g.images = []; PASTE_TARGET = { t, arr: g.images, dz }; setPasteHint(dz); };
+  dz.onclick = () => fileInput.click();
   fileInput.onchange = () => { if (!g.images) g.images = []; handleFiles(fileInput.files, t, g.images); };
   dz.ondragover = (e) => { e.preventDefault(); dz.classList.add("over"); };
   dz.ondragleave = () => dz.classList.remove("over");
@@ -1467,7 +1467,12 @@ async function init() {
   status("就绪");
 }
 
-// 截图后 Ctrl+V：把剪贴板里的图片放进最近点过的上传区
+// 高亮当前粘贴目标框，让用户看清截图会粘到哪
+function setPasteHint(dz) {
+  document.querySelectorAll(".dropzone.paste-active").forEach(e => e.classList.remove("paste-active"));
+  if (dz) dz.classList.add("paste-active");
+}
+// 截图后 Ctrl+V：把剪贴板里的图片放进鼠标当前所在的上传区
 function bindPasteImages() {
   document.addEventListener("paste", (e) => {
     const items = (e.clipboardData && e.clipboardData.items) || [];
@@ -1480,7 +1485,7 @@ function bindPasteImages() {
     }
     if (!imgs.length) return;          // 剪贴板里没有图片，交给默认行为(粘文字)
     e.preventDefault();
-    if (!PASTE_TARGET) { alert("请先点一下要粘贴到的图片上传框，再按 Ctrl+V"); return; }
+    if (!PASTE_TARGET) { alert("请先把鼠标移到要粘贴的图片区域上（框会高亮），再按 Ctrl+V"); return; }
     // 给截图起个带时间戳的文件名，避免同名覆盖
     const stamp = new Date().toISOString().replace(/[-:T.]/g, "").slice(0, 14);
     const named = imgs.map((f, i) => {

@@ -75,6 +75,8 @@ table.rows td { vertical-align: top; }
   min-height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .dropzone:hover { border-color: #1f6feb; background: #f6f9ff; color: #1f6feb; }
 .dropzone.over { background: #eef4ff; border-color: #1f6feb; color: #1f6feb; border-style: solid; }
+/* 鼠标悬停的区域=粘贴目标，高亮提示；Ctrl+V 截图就进这里 */
+.dropzone.paste-active { border-color: #1f6feb; border-style: solid; background: #f5f9ff; box-shadow: 0 0 0 3px rgba(31,111,235,.12); }
 .dropzone .dz-icon { font-size: 26px; line-height: 1; margin-bottom: 6px; }
 .thumbs { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
 .thumb { width: 200px; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; background: #fff; position: relative; }
