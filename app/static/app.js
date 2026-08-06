@@ -898,13 +898,39 @@ function showResultActions(file, size) {
   }
   fileBox.innerHTML = `📄 ${escAttr(file)}<span class="fsize">（${mb} MB）</span>`;
   actions.innerHTML = "";
+  const titleReset = mask.querySelector(".modal-head b");
+  if (titleReset) titleReset.textContent = "✓ 报告已生成";
   const close = () => { mask.style.display = "none"; };
   const mkBtn = (label, cls, fn) => { const b = el("button", cls); b.textContent = label; b.onclick = fn; return b; };
   // 本机访问才可能让服务器打开 WPS/文件夹；飞书或远程浏览器一律走下载
   const hostLocal = ["localhost", "127.0.0.1", "::1", ""].includes(location.hostname);
   const isLocal = ENV.is_local && hostLocal && !ENV.feishu;
-  const dl = () => { downloadFile(file); };
-  // 主按钮：下载报告（服务器在 Linux，远程用户无法让服务器开 WPS，一律下载）
+  const titleEl = mask.querySelector(".modal-head b");
+
+  // 打开报告：本机让服务器用 WPS 打开；远程浏览器则在新标签打开(交给系统/浏览器)
+  const openReport = async () => {
+    if (isLocal) {
+      try {
+        const j = await readJSON(await fetch("/api/open", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file }) }));
+        if (j.ok) { close(); return; }
+      } catch (e) { /* 落到下面的浏览器兜底 */ }
+    }
+    window.open("/api/download?file=" + encodeURIComponent(file), "_blank");
+  };
+
+  // 下载完成后把弹窗切换成“打开报告”状态：不再重复提示下载
+  const showDownloaded = () => {
+    if (titleEl) titleEl.textContent = "✓ 报告已下载";
+    actions.innerHTML = "";
+    actions.appendChild(mkBtn("打开报告", "btn-primary", openReport));
+    actions.appendChild(mkBtn("完成", "btn-ghost", close));
+    const tip = el("div", "result-tip", "已开始下载。点“打开报告”查看，或去下载文件夹找它。");
+    actions.appendChild(tip);
+  };
+
+  const dl = () => { downloadFile(file); showDownloaded(); };
+  // 主按钮：下载报告（点完自动切到“打开报告”）
   actions.appendChild(mkBtn("下载报告", "btn-primary", dl));
   // 仅本机(开发机)访问时才提供“打开所在文件夹”，远程访问不显示
   if (isLocal) {
@@ -1167,14 +1193,17 @@ async function stdImgCaption(r, file, caption) {
 
 function stdFormRow(r, mode) {
   const tr = el("tr", "std-form");
-  const mk = (val, ph, locked) => {
-    const c = el("td"); const i = el("input"); i.value = val || ""; if (ph) i.placeholder = ph;
+  const mk = (val, ph, locked, multiline) => {
+    const c = el("td");
+    // 试验条件/要求常是多行：用 textarea，否则单行 input 会把粘进来的换行压成空格
+    const i = el(multiline ? "textarea" : "input"); i.value = val || ""; if (ph) i.placeholder = ph;
+    if (multiline) { i.rows = 4; i.className = "std-cell-ta"; }
     if (locked) { i.readOnly = true; i.classList.add("locked"); }
     c.appendChild(i); return { c, i };
   };
   const lockItem = mode === "addoem";
   const fItem = mk(r.item, "测试项目", lockItem), fOem = mk(r.oem, "车厂"),
-        fStd = mk(r.standard, "标准号/条款号"), fCond = mk(r.condition, "试验条件"), fReq = mk(r.requirement, "试验要求");
+        fStd = mk(r.standard, "标准号/条款号", false, true), fCond = mk(r.condition, "试验条件", false, true), fReq = mk(r.requirement, "试验要求", false, true);
   [fItem, fOem, fStd, fCond, fReq].forEach(f => tr.appendChild(f.c));
   const act = el("td"); const box = el("div", "std-act");
   const sb = el("button", "save", "保存");

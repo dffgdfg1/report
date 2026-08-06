@@ -53,6 +53,7 @@ main { max-width: 980px; margin: 18px auto; padding: 0 16px 80px; }
   background: #f4f9f5; border: 1px solid #cfebd8; border-radius: 8px; padding: 12px 14px; margin-bottom: 20px; }
 .result-file .fsize { color: #16733a; font-weight: 600; margin-left: 6px; }
 .result-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.result-tip { flex-basis: 100%; font-size: 12.5px; color: #6b7280; margin-top: 2px; }
 .result-actions button { flex: 1; min-width: 130px; padding: 11px 14px; font-size: 14px; border-radius: 8px; }
 .result-actions .btn-primary { background: #1f6feb; color: #fff; border: 1px solid #1f6feb; }
 .result-actions .btn-primary:hover { background: #1a5fd0; }
@@ -143,8 +144,9 @@ table.rows td { vertical-align: top; }
 .std-table td { padding: 7px 8px; border-bottom: 1px solid #eef0f4; vertical-align: top; }
 .std-table tr:hover td { background: #fafcff; }
 .std-table td.wrap { white-space: pre-wrap; word-break: break-word; }
-.std-table input { width: 100%; box-sizing: border-box; padding: 5px 6px; border: 1px solid #b8c4e0;
+.std-table input, .std-table textarea { width: 100%; box-sizing: border-box; padding: 5px 6px; border: 1px solid #b8c4e0;
   border-radius: 4px; font-size: 13px; font-family: inherit; }
+.std-table textarea.std-cell-ta { resize: vertical; line-height: 1.5; min-height: 60px; white-space: pre; }
 .std-act { display: flex; gap: 5px; white-space: nowrap; }
 .std-act button { padding: 3px 8px; font-size: 12px; border: 1px solid #ccd; background: #fff;
   border-radius: 4px; cursor: pointer; }
