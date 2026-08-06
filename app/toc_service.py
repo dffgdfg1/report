@@ -41,11 +41,19 @@ def _update_com(path):
     used = None
     try:
         import win32com.client as win32
-        # 用动态 Dispatch，避开 gencache(EnsureDispatch) 缓存损坏问题
+        # DispatchEx 强制新建独立进程：否则 Dispatch 会附着到用户已打开的
+        # WPS/Word 实例，退出时把用户正在看的文档一起关掉。
         try:
-            application = win32.Dispatch("KWps.Application"); used = "WPS"
+            application = win32.DispatchEx("KWps.Application"); used = "WPS"
         except Exception:
-            application = win32.Dispatch("Word.Application"); used = "Word"
+            try:
+                application = win32.DispatchEx("Word.Application"); used = "Word"
+            except Exception:
+                # 极少数环境 DispatchEx 不可用时退回 Dispatch（下面用文档计数兜底保护）
+                try:
+                    application = win32.Dispatch("KWps.Application"); used = "WPS"
+                except Exception:
+                    application = win32.Dispatch("Word.Application"); used = "Word"
         try: application.Visible = False
         except Exception: pass
         try: application.DisplayAlerts = False
@@ -73,11 +81,19 @@ def _update_com(path):
             pass
         doc.Save()
         doc.Close(False)
+        doc = None
         return used
     finally:
         try:
             if application is not None:
-                application.Quit()
+                # 兜底保护：万一附着到了用户的实例，只有在没有其它文档打开时才退出，
+                # 避免关掉用户正在编辑的文档。
+                try:
+                    remaining = application.Documents.Count
+                except Exception:
+                    remaining = 0
+                if remaining <= 0:
+                    application.Quit()
         except Exception:
             pass
         pythoncom.CoUninitialize()

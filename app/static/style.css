@@ -109,8 +109,9 @@ table.rows td { vertical-align: top; }
 .date-range input[type=date] { flex: 1; min-width: 0; padding: 6px 6px; border: 1px solid #ccd; border-radius: 5px; font-size: 12px; font-family: inherit; }
 .date-sep { color: #889; font-size: 12px; flex: 0 0 auto; }
 /* 标准号 + 快捷按钮 */
-.std-row { display: flex; gap: 6px; align-items: center; }
-.std-row input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid #ccd; border-radius: 5px; font-size: 13px; font-family: inherit; }
+.std-row { display: flex; gap: 6px; align-items: flex-start; }
+.std-row input, .std-row textarea { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid #ccd; border-radius: 5px; font-size: 13px; font-family: inherit; box-sizing: border-box; }
+.std-row textarea { resize: vertical; line-height: 1.5; }
 .std-row .btn-mini { flex: 0 0 auto; white-space: nowrap; }
 
 /* ===== 标准库管理面板 ===== */

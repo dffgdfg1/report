@@ -22,6 +22,8 @@ let SCHEMES = [];   // 已保存的测试方案名列表
 let STD = {};       // 标准库：{测试项目: {车厂: {standard, condition, requirement}}}
 let DEV = [];       // 设备库：[{name, model, mgmt_no, cal_date, cal_end, ...}]
 let saveTimer = null;
+// 记录最近一次点击/悬停的图片上传区，粘贴截图(Ctrl+V)时图片进这里
+let PASTE_TARGET = null;
 
 // 与后端 safe_name 完全一致：非[数字/字母/_/-/中文]的字符 → _。
 // 用于构造 /api/image 的路径，避免项目名里的斜杠(如 ME/WTD、YJ/SYBG)导致取图 404。
@@ -273,7 +275,9 @@ function standardField(t) {
   const f = el("div", "field");
   f.innerHTML = `<label>标准号/条款号</label>`;
   const row = el("div", "std-row");
-  const inp = el("input"); inp.value = t.standard || "";
+  // 用 textarea：标准号/条款号常有多行，保留录入时的换行与空格，原样写进 Word
+  const inp = el("textarea"); inp.value = t.standard || ""; inp.rows = 3; inp.className = "std-input";
+  inp.placeholder = "可多行录入，换行/空格会原样保留到报告里";
   inp.oninput = () => { t.standard = inp.value; scheduleSave(); };
   const btn = el("button", "btn-mini", "参考客户大纲");
   btn.title = "点击填入“参考客户大纲”";
@@ -663,9 +667,11 @@ function renderConditionImages(t) {
   if (!t.condition_images) t.condition_images = [];
   const wrap = el("div");
   wrap.appendChild(el("div", "subhead", "试验条件配图（可选，插在“试验条件”下方）"));
-  const dz = el("div", "dropzone", "<div class='dz-icon'>🖼️</div><b>把试验条件相关图片拖到这里</b><br>或点击此区域选择<br><span style='font-size:12px;color:#a0a8bb'>仅支持图片，可多选</span>");
+  const dz = el("div", "dropzone", "<div class='dz-icon'>🖼️</div><b>把试验条件相关图片拖到这里</b><br>或点击此区域选择，也可截图后按 Ctrl+V 粘贴<br><span style='font-size:12px;color:#a0a8bb'>仅支持图片，可多选</span>");
   const fi = el("input"); fi.type = "file"; fi.accept = "image/*"; fi.multiple = true; fi.style.display = "none";
-  dz.onclick = () => fi.click();
+  const setTgt = () => { PASTE_TARGET = { t, arr: t.condition_images }; };
+  dz.onclick = () => { setTgt(); fi.click(); };
+  dz.onmousedown = setTgt;
   fi.onchange = () => handleFiles(fi.files, t, t.condition_images);
   dz.ondragover = (e) => { e.preventDefault(); dz.classList.add("over"); };
   dz.ondragleave = () => dz.classList.remove("over");
@@ -718,9 +724,11 @@ function renderImageGroup(t, g, gi) {
   box.appendChild(th);
 
   // 拖放区
-  const dz = el("div", "dropzone", "<div class='dz-icon'>📷</div><b>把照片拖到这里</b><br>或点击此区域选择（可多选）");
+  const dz = el("div", "dropzone", "<div class='dz-icon'>📷</div><b>把照片拖到这里</b><br>或点击此区域选择，也可截图后按 Ctrl+V 粘贴（可多选）");
   const fileInput = el("input"); fileInput.type = "file"; fileInput.accept = "image/*"; fileInput.multiple = true; fileInput.style.display = "none";
-  dz.onclick = () => fileInput.click();
+  const setTgt = () => { if (!g.images) g.images = []; PASTE_TARGET = { t, arr: g.images }; };
+  dz.onclick = () => { setTgt(); fileInput.click(); };
+  dz.onmousedown = setTgt;
   fileInput.onchange = () => { if (!g.images) g.images = []; handleFiles(fileInput.files, t, g.images); };
   dz.ondragover = (e) => { e.preventDefault(); dz.classList.add("over"); };
   dz.ondragleave = () => dz.classList.remove("over");
@@ -1455,6 +1463,31 @@ async function init() {
   $("#btnOpen").onclick = openDialog;
   $("#btnAddTest").onclick = addTest;
   bindToggles();
+  bindPasteImages();
   status("就绪");
+}
+
+// 截图后 Ctrl+V：把剪贴板里的图片放进最近点过的上传区
+function bindPasteImages() {
+  document.addEventListener("paste", (e) => {
+    const items = (e.clipboardData && e.clipboardData.items) || [];
+    const imgs = [];
+    for (const it of items) {
+      if (it.kind === "file" && it.type && it.type.startsWith("image/")) {
+        const f = it.getAsFile();
+        if (f) imgs.push(f);
+      }
+    }
+    if (!imgs.length) return;          // 剪贴板里没有图片，交给默认行为(粘文字)
+    e.preventDefault();
+    if (!PASTE_TARGET) { alert("请先点一下要粘贴到的图片上传框，再按 Ctrl+V"); return; }
+    // 给截图起个带时间戳的文件名，避免同名覆盖
+    const stamp = new Date().toISOString().replace(/[-:T.]/g, "").slice(0, 14);
+    const named = imgs.map((f, i) => {
+      const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg");
+      return new File([f], `粘贴截图_${stamp}_${i + 1}.${ext}`, { type: f.type });
+    });
+    handleFiles(named, PASTE_TARGET.t, PASTE_TARGET.arr);
+  });
 }
 init();
