@@ -333,7 +333,14 @@ def fill_equip_tbl(tbl, doc, equlist):
 def fill_desc_tbl(tbl, doc, d):
     # 4行：环境条件|<>|测试日期|<> ; 试验标准|<> ; 试验条件|<>(+可选配图) ; 试验要求|<>
     rows = tbl_rows(tbl)
-    r0 = row_cells(rows[0]); set_tc_text(r0[1], d.get("env", ""), align="center"); set_tc_text(r0[3], d.get("test_date", ""))
+    # 测试日期：优先显示 开始时间-完成时间 区间；缺失则回退到单个 test_date
+    _sd = str(d.get("start_date", "") or "").strip()
+    _ed = str(d.get("end_date", "") or "").strip()
+    if _sd and _ed:
+        _date_val = _sd if _sd == _ed else f"{_sd}-{_ed}"
+    else:
+        _date_val = _sd or _ed or str(d.get("test_date", "") or "").strip()
+    r0 = row_cells(rows[0]); set_tc_text(r0[1], d.get("env", ""), align="center"); set_tc_text(r0[3], _date_val)
     r1 = row_cells(rows[1]); set_tc_text(r1[1], d.get("standard", ""))
     r2 = row_cells(rows[2]); clear_cell_images(r2[1]); set_tc_text(r2[1], d.get("condition", ""))
     r3 = row_cells(rows[3]); set_tc_text(r3[1], d.get("requirement", ""))
@@ -360,8 +367,11 @@ def build_section(doc, donor_doc, test):
     # 标题（blocks[0]）
     set_tc_text  # noqa
     title_p = blocks[0]
-    # 用第一处 run 改标题文本
-    set_para_text(title_p, test.get("title", "测试"))
+    # 用第一处 run 改标题文本；大标题默认追加“测试”后缀（不影响试验结果汇总）
+    _title = str(test.get("title", "") or "").strip()
+    if _title and not _title.endswith("测试"):
+        _title = _title + "测试"
+    set_para_text(title_p, _title or "测试")
     # 每个测试项目单独分页：标题段前加分页
     add_page_break_before(title_p)
     # 填表
