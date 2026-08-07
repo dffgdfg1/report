@@ -907,30 +907,17 @@ function showResultActions(file, size) {
   const isLocal = ENV.is_local && hostLocal && !ENV.feishu;
   const titleEl = mask.querySelector(".modal-head b");
 
-  // 打开报告：本机让服务器用 WPS 打开；远程浏览器则在新标签打开(交给系统/浏览器)
-  const openReport = async () => {
-    if (isLocal) {
-      try {
-        const j = await readJSON(await fetch("/api/open", {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file }) }));
-        if (j.ok) { close(); return; }
-      } catch (e) { /* 落到下面的浏览器兜底 */ }
-    }
-    window.open("/api/download?file=" + encodeURIComponent(file), "_blank");
-  };
-
-  // 下载完成后把弹窗切换成“打开报告”状态：不再重复提示下载
+  // 下载完成后把弹窗切换成已下载状态：仅保留“完成”，不再提示打开
   const showDownloaded = () => {
     if (titleEl) titleEl.textContent = "✓ 报告已下载";
     actions.innerHTML = "";
-    actions.appendChild(mkBtn("打开报告", "btn-primary", openReport));
-    actions.appendChild(mkBtn("完成", "btn-ghost", close));
-    const tip = el("div", "result-tip", "已开始下载。点“打开报告”查看，或去下载文件夹找它。");
+    actions.appendChild(mkBtn("完成", "btn-primary", close));
+    const tip = el("div", "result-tip", "已开始下载，请去下载文件夹查看。");
     actions.appendChild(tip);
   };
 
   const dl = () => { downloadFile(file); showDownloaded(); };
-  // 主按钮：下载报告（点完自动切到“打开报告”）
+  // 主按钮：下载报告（点完切到“已下载”状态）
   actions.appendChild(mkBtn("下载报告", "btn-primary", dl));
   // 仅本机(开发机)访问时才提供“打开所在文件夹”，远程访问不显示
   if (isLocal) {
