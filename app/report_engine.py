@@ -598,6 +598,12 @@ def fill_summary(doc, tests):
         tbl._tbl.remove(r)
     for i, t in enumerate(tests, 1):
         r = clone(data_tmpl)
+        # 模板数据行设了固定行高(trHeight≈936，约3行高)，会把单行内容撑高多出空行；
+        # 去掉强制高度，让行高自适应内容
+        trpr = r.find(W + 'trPr')
+        if trpr is not None:
+            for th in trpr.findall(W + 'trHeight'):
+                trpr.remove(th)
         c = row_cells(r)
         vals = [str(i), t.get("title", ""), t.get("standard", ""),
                 t.get("sample_no", ""), t.get("start_date", ""),
