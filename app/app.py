@@ -36,9 +36,11 @@ app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 单次上传上限 200MB
 FEISHU_CFG = feishu_auth.load_config(BASE)
 feishu_auth.init_app(app, FEISHU_CFG)
 
-SAFE = re.compile(r"[^0-9A-Za-z_\-一-鿿]")
+SAFE = re.compile(r"[^0-9A-Za-z_\-／一-鿿]")
 def safe_name(s):
-    s = SAFE.sub("_", (s or "").strip())
+    # 英文斜杠 / 是文件名非法字符，改用中文全角斜杠 ／（Windows 文件名合法），而非替换成下划线
+    s = (s or "").strip().replace("/", "／")
+    s = SAFE.sub("_", s)
     return s or "未命名"
 
 def pdir(name):
