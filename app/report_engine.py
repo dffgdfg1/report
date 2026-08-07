@@ -337,7 +337,7 @@ def fill_desc_tbl(tbl, doc, d):
     _sd = str(d.get("start_date", "") or "").strip()
     _ed = str(d.get("end_date", "") or "").strip()
     if _sd and _ed:
-        _date_val = _sd if _sd == _ed else f"{_sd}-{_ed}"
+        _date_val = f"{_sd}-{_ed}"
     else:
         _date_val = _sd or _ed or str(d.get("test_date", "") or "").strip()
     r0 = row_cells(rows[0]); set_tc_text(r0[1], d.get("env", ""), align="center"); set_tc_text(r0[3], _date_val)
