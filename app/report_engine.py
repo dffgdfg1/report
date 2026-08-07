@@ -460,6 +460,49 @@ def set_para_text(p, text):
         media_runs[-1].addnext(r)
     else:
         p.append(r)
+
+def set_para_label_value(p, label, value):
+    """把段落写成“标签 + 值”两个 run：标签保留原首个文本run格式（如加粗），
+    值 run 复用同一格式但强制去掉加粗。保留含图片/图形的run。"""
+    runs = p.findall(W + 'r')
+    text_runs = [r for r in runs if not _run_has_media(r)]
+    rpr_tmpl = None
+    if text_runs:
+        rpr = text_runs[0].find(W + 'rPr')
+        if rpr is not None:
+            rpr_tmpl = clone(rpr)
+    for r in text_runs:
+        p.remove(r)
+
+    def _mk_run(text, bold):
+        r = p.makeelement(W + 'r', {})
+        if rpr_tmpl is not None:
+            rpr = clone(rpr_tmpl)
+        else:
+            rpr = r.makeelement(W + 'rPr', {})
+        # 去掉已有的 b / bCs，再按需显式设置
+        for tag in ('b', 'bCs'):
+            for b in rpr.findall(W + tag):
+                rpr.remove(b)
+        if not bold:
+            for tag in ('b', 'bCs'):
+                b = rpr.makeelement(W + tag, {}); b.set(qn('w:val'), '0'); rpr.append(b)
+        r.append(rpr)
+        t = r.makeelement(W + 't', {})
+        t.set(qn('xml:space'), 'preserve')
+        t.text = text
+        r.append(t)
+        return r
+
+    label_run = _mk_run(label, bold=True)   # 标签保留原格式（含加粗）
+    value_run = _mk_run(value, bold=False)  # 值不加粗
+    media_runs = [x for x in p.findall(W + 'r') if _run_has_media(x)]
+    if media_runs:
+        media_runs[-1].addnext(value_run)
+        media_runs[-1].addnext(label_run)
+    else:
+        p.append(label_run)
+        p.append(value_run)
 # ---------- 封面 / 样品信息 / 汇总 / 页眉 ----------
 def set_underline_value(tc, text):
     """填写"填空式"单元格：保留底部横线(由带下划线的空格run构成)，
@@ -570,7 +613,8 @@ def fill_report_no(doc, report_no):
         return
     for p in doc.element.body.iterchildren():
         if p.tag == W + 'p' and para_text(p).startswith("报告编号"):
-            set_para_text(p, "报告编号：" + report_no)
+            # 标签“报告编号：”保留原格式（加粗），编号值本身不加粗
+            set_para_label_value(p, "报告编号：", report_no)
             break
     # 页眉：报告编号靠右上角（logo保留在左，编号用右tab推到右边缘）
     for section in doc.sections:
