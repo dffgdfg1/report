@@ -596,6 +596,19 @@ def fill_summary(doc, tests):
     data_tmpl = rows[2]
     for r in rows[2:]:
         tbl._tbl.remove(r)
+    # 表头"序号"等单元格里带了多余的空段落(会在标题上方多显示一行空行)；
+    # 每个单元格保留最后一个非空段落之外的内容，若全空则至少留一个段落
+    for hr in header_rows:
+        for tc in row_cells(hr):
+            paras = tc.findall(W + 'p')
+            if len(paras) <= 1:
+                continue
+            nonempty = [p for p in paras
+                        if "".join(t.text or "" for t in p.iter(W + 't')).strip()]
+            keep = set(id(p) for p in (nonempty or paras[-1:]))
+            for p in paras:
+                if id(p) not in keep:
+                    tc.remove(p)
     for i, t in enumerate(tests, 1):
         r = clone(data_tmpl)
         # 模板数据行设了固定行高(trHeight≈936，约3行高)，会把单行内容撑高多出空行；
