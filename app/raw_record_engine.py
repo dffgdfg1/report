@@ -36,7 +36,7 @@ def _join(items):
     return "\n".join(s for s in items if str(s or "").strip())
 
 
-def _fill_table(tbl_el, info, test):
+def _fill_table(tbl_el, info, test, doc):
     """填一张原始记录表（15 行）。tbl_el 为 <w:tbl> 元素。"""
     rows = tbl_el.findall(W + 'tr')
 
@@ -63,13 +63,35 @@ def _fill_table(tbl_el, info, test):
     c = cells(5); _set(c[1], eq_models); _set(c[3], eq_cal)
     # R6 试验项目 / 试验标准
     c = cells(6); _set(c[1], test.get("title", "")); _set(c[3], test.get("standard", ""))
-    # R7 试验条件（跨列）
-    c = cells(7); _set(c[1], test.get("condition", ""))
+    # R7 试验条件（跨列）：文字上下居中，其下追加试验条件配图
+    c = cells(7); _set(c[1], test.get("condition", "")); _vcenter(c[1])
+    _append_cond_images(c[1], doc, test.get("condition_images", []))
     # R8 试验要求（跨列）
     c = cells(8); _set(c[1], test.get("requirement", ""))
     # R9~R12、R14 为签字/状态/判定/备注等手填栏，保持模板原样不动
     # R13 测试日期：把开始/结束时间填进模板那句固定格式的话术里
     _fill_test_date(cells(13)[1], test)
+
+
+def _vcenter(tc):
+    """单元格内容垂直居中（试验条件文字上下居中）。"""
+    from docx.oxml.ns import qn
+    tcPr = tc.find(qn('w:tcPr'))
+    if tcPr is None:
+        tcPr = tc.makeelement(qn('w:tcPr'), {})
+        tc.insert(0, tcPr)
+    vA = tcPr.find(qn('w:vAlign'))
+    if vA is None:
+        vA = tcPr.makeelement(qn('w:vAlign'), {})
+        tcPr.append(vA)
+    vA.set(qn('w:val'), 'center')
+
+
+def _append_cond_images(tc, doc, imgs):
+    """在试验条件文字下方追加配图。复用主报告引擎的插图逻辑（同尺寸/居中/图注）。"""
+    if not imgs:
+        return
+    E.append_pictures_to_cell(tc, doc, imgs)
 
 
 def _fill_test_date(tc, test):
@@ -90,6 +112,28 @@ def _fill_test_date(tc, test):
     _set(tc, new)
 
 
+def _fill_record_no(doc, no):
+    """把正文「编号：」段落补成「编号：<委托单号>」，保留原字体。"""
+    no = str(no or '').strip()
+    if not no:
+        return
+    for p in doc.paragraphs:
+        txt = ''.join(r.text or '' for r in p.runs)
+        if txt.strip().startswith('编号'):
+            runs = p.runs
+            if not runs:
+                continue
+            # 保留首个 run 的「编号：」标签，把单号接到其后
+            base = runs[0].text or ''
+            if '：' in base:
+                runs[0].text = base.split('：')[0] + '：' + no
+            else:
+                runs[0].text = base + no
+            for r in runs[1:]:
+                r.text = ''
+            break
+
+
 def generate_raw_records(project, out_path):
     """project: {info:{...}, tests:[{...}]} -> 生成 out_path(.docx)。
     每个测试项一张原始记录表，多项之间分页。"""
@@ -99,12 +143,14 @@ def generate_raw_records(project, out_path):
         tests = [{}]  # 没有测试项也产出一张空表，避免空文档
 
     doc = Document(SKELETON)
+    # 「编号：」段落填委托单号
+    _fill_record_no(doc, info.get("commission_no", ""))
     tmpl_tbl = doc.tables[0]._tbl
     # 先留一份未填写的空白模板副本，供后续每张记录克隆（否则会克隆到已填数据）
     blank_tbl = copy.deepcopy(tmpl_tbl)
 
     # 第一张：直接填模板里已有的表
-    _fill_table(tmpl_tbl, info, tests[0])
+    _fill_table(tmpl_tbl, info, tests[0], doc)
     last_el = tmpl_tbl
 
     # 其余每张：分页符 + 克隆空白模板表再填
@@ -113,7 +159,7 @@ def generate_raw_records(project, out_path):
         last_el.addnext(pbreak)
         new_tbl = copy.deepcopy(blank_tbl)
         pbreak.addnext(new_tbl)
-        _fill_table(new_tbl, info, t)
+        _fill_table(new_tbl, info, t, doc)
         last_el = new_tbl
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)

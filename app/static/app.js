@@ -413,9 +413,12 @@ function renderTypePicker(t, idx) {
       if (oems.length === 1) {
         const e = STD[it.name][oems[0]];
         t.oem = oems[0];
-        if (e.standard != null) t.standard = e.standard;
-        if (e.condition != null) t.condition = e.condition;
-        if (e.requirement != null) t.requirement = e.requirement;
+        // 套用标准：先清空条件类内容（含试验条件配图）再带入
+        t.standard = e.standard != null ? e.standard : "";
+        t.condition = e.condition != null ? e.condition : "";
+        t.requirement = e.requirement != null ? e.requirement : "";
+        if (e.env != null) t.env = e.env;
+        t.condition_images = [];
         toast(`已套用「${it.name} · ${oems[0]}」的条件 ✓`);
       } else if (oems.length > 1) {
         toast(`「${it.name}」有 ${oems.length} 个车厂，请在下方“按车厂”里选`);
@@ -472,9 +475,12 @@ function renderOemPicker(t, idx) {
     if (!oem || !STD[matchedKey] || !STD[matchedKey][oem]) { toast("请先选车厂"); return; }
     const e = STD[matchedKey][oem];
     t.oem = oem;
-    if (e.standard != null) t.standard = e.standard;
-    if (e.condition != null) t.condition = e.condition;
-    if (e.requirement != null) t.requirement = e.requirement;
+    // 套用标准 = 一次干净的覆盖：先清空本测试之前填的条件类内容（含试验条件配图），避免旧内容/旧附图叠加残留
+    t.standard = e.standard != null ? e.standard : "";
+    t.condition = e.condition != null ? e.condition : "";
+    t.requirement = e.requirement != null ? e.requirement : "";
+    if (e.env != null) t.env = e.env;
+    t.condition_images = [];
     // 标准若带附图（PSD谱/曲线/表格截图等），复制进本项目的"试验条件配图"
     const nImgs = (e.images || []).length;
     if (nImgs) {
@@ -485,9 +491,8 @@ function renderOemPicker(t, idx) {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ project: state.name, item: matchedKey, oem }) }));
           if (j.ok) {
-            if (!t.condition_images) t.condition_images = [];
-            // 先清掉上次从标准带来的图，避免重复套用叠加
-            t.condition_images = t.condition_images.filter(im => !im.from_std).concat(j.images || []);
+            // 上面已清空 condition_images，直接带入本标准的附图
+            t.condition_images = (j.images || []);
           }
         } catch (err) { /* 图失败不阻断条件套用 */ }
       }
