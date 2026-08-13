@@ -18,6 +18,7 @@ def _native_open(path):
 
 import presets as P
 import report_engine as E
+import raw_record_engine as RR
 import feishu_auth
 import locks
 
@@ -1085,6 +1086,31 @@ def api_generate():
                 "error": "无法写入报告文件，可能它正在 WPS/Word 中打开。请先关闭已打开的「%s.docx」再重试。" % safe_name(name)}), 200
         # 记录本次生成的报告编号，供报告编号自动递增
         _append_genlog((data.get("info", {}) or {}).get("report_no", ""))
+        return jsonify({"ok": True, "file": os.path.basename(out), "size": os.path.getsize(out)})
+    except Exception as ex:
+        import traceback
+        tb = traceback.format_exc()
+        try:
+            with open(os.path.join(BASE, "构建", "错误日志.txt"), "w", encoding="utf-8") as f:
+                f.write(tb)
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": str(ex)}), 200
+
+@app.route("/api/generate_raw", methods=["POST"])
+def api_generate_raw():
+    """生成原始记录（.docx）：每个试验项一张原始记录表，共用首页样品信息。
+    复用设备库(test.equipment)、试验项目库(test)、申请单导入的样品信息(info)。"""
+    try:
+        data = request.get_json(force=True)
+        name = data.get("name") or "报告"
+        proj = {"info": data.get("info", {}), "tests": data.get("tests", [])}
+        out = os.path.join(OUT_DIR, safe_name(name) + "_原始记录.docx")
+        try:
+            RR.generate_raw_records(proj, out)
+        except PermissionError:
+            return jsonify({"ok": False,
+                "error": "无法写入原始记录文件，可能它正在 WPS/Word 中打开。请先关闭已打开的「%s_原始记录.docx」再重试。" % safe_name(name)}), 200
         return jsonify({"ok": True, "file": os.path.basename(out), "size": os.path.getsize(out)})
     except Exception as ex:
         import traceback

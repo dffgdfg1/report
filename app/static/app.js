@@ -123,6 +123,7 @@ const INFO_FIELDS = [
   ["maker_name", "制造商名称", "text"],
   ["maker_addr", "制造商地址", "text"],
   ["sample_qty", "样品数量", "text"],
+  ["rated_volt", "额定电压", "text"],
   ["sample_way", "来样方式", "text"],
   ["recv_date", "收样日期", "date"],
   ["commission_no", "委托单号", "text"],
@@ -889,17 +890,18 @@ function downloadFile(file) {
 }
 
 // 生成成功后：弹窗展示结果 + 下载/打开操作
-function showResultActions(file, size) {
+function showResultActions(file, size, noun) {
+  noun = noun || "报告";
   const mb = (size / 1048576).toFixed(1);
   const mask = $("#resultModal"), fileBox = $("#resultFile"), actions = $("#resultActions");
   if (!mask || !fileBox || !actions) { // 兜底：无弹窗元素时退回下载确认
-    if (confirm(`报告已生成（${mb} MB）。是否下载？`)) window.location = "/api/download?file=" + encodeURIComponent(file);
+    if (confirm(`${noun}已生成（${mb} MB）。是否下载？`)) window.location = "/api/download?file=" + encodeURIComponent(file);
     return;
   }
   fileBox.innerHTML = `📄 ${escAttr(file)}<span class="fsize">（${mb} MB）</span>`;
   actions.innerHTML = "";
   const titleReset = mask.querySelector(".modal-head b");
-  if (titleReset) titleReset.textContent = "✓ 报告已生成";
+  if (titleReset) titleReset.textContent = "✓ " + noun + "已生成";
   const close = () => { mask.style.display = "none"; };
   const mkBtn = (label, cls, fn) => { const b = el("button", cls); b.textContent = label; b.onclick = fn; return b; };
   // 本机访问才可能让服务器打开 WPS/文件夹；飞书或远程浏览器一律走下载
@@ -909,7 +911,7 @@ function showResultActions(file, size) {
 
   // 下载完成后把弹窗切换成已下载状态：仅保留“完成”，不再提示打开
   const showDownloaded = () => {
-    if (titleEl) titleEl.textContent = "✓ 报告已下载";
+    if (titleEl) titleEl.textContent = "✓ " + noun + "已下载";
     actions.innerHTML = "";
     actions.appendChild(mkBtn("完成", "btn-primary", close));
     const tip = el("div", "result-tip", "已开始下载，请去下载文件夹查看。");
@@ -918,7 +920,7 @@ function showResultActions(file, size) {
 
   const dl = () => { downloadFile(file); showDownloaded(); };
   // 主按钮：下载报告（点完切到“已下载”状态）
-  actions.appendChild(mkBtn("下载报告", "btn-primary", dl));
+  actions.appendChild(mkBtn("下载" + noun, "btn-primary", dl));
   // 仅本机(开发机)访问时才提供“打开所在文件夹”，远程访问不显示
   if (isLocal) {
     actions.appendChild(mkBtn("打开所在文件夹", "btn-ghost", async () => {
@@ -987,6 +989,33 @@ async function generate() {
     }
   }
   finally { $("#btnGen").disabled = false; }
+}
+async function generateRaw() {
+  if (!state.name) { alert("请先填写项目名称"); return; }
+  if (!state.tests.length) { alert("请至少添加一个测试项目"); return; }
+  if (!(await serverAlive())) {
+    alert("连接不上后台服务。\n\n请检查那个黑色命令行窗口是否还开着：\n如果已关闭，请重新双击「启动.bat」，然后刷新本页面再试。");
+    status("服务器未运行"); return;
+  }
+  await doSave();
+  const rb = $("#resultBar"); if (rb) rb.style.display = "none";
+  status("正在生成原始记录…");
+  $("#btnGenRaw").disabled = true;
+  try {
+    const r = await fetch("/api/generate_raw", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state) });
+    const j = await readJSON(r);
+    if (!j.ok) { alert("生成失败：" + (j.error || "")); status("生成失败"); return; }
+    status("原始记录生成完成 ✓");
+    showResultActions(j.file, j.size, "原始记录");
+  } catch (e) {
+    if (String(e).includes("Failed to fetch")) {
+      alert("生成过程中与后台断开了连接。\n\n多半是那个黑色命令行窗口被关闭了。\n请重新双击「启动.bat」，刷新页面后再生成。\n（你的进度已保存，不会丢失。）");
+      status("连接中断");
+    } else {
+      alert("生成出错：" + e); status("");
+    }
+  }
+  finally { $("#btnGenRaw").disabled = false; }
 }
 // ============ 初始化 ============
 function addTest() {
@@ -1475,6 +1504,7 @@ async function init() {
   $("#pname").title = "项目名称由“委托单号 - 样品型号 + 试验报告”自动生成，不可手改";
   $("#btnSave").onclick = doSave;
   $("#btnGen").onclick = generate;
+  $("#btnGenRaw").onclick = generateRaw;
   $("#btnNew").onclick = newProject;
   $("#btnOpen").onclick = openDialog;
   $("#btnAddTest").onclick = addTest;
