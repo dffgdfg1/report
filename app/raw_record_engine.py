@@ -66,12 +66,17 @@ def _fill_table(tbl_el, info, test, doc):
     # R7 试验条件（跨列）：文字上下居中，其下追加试验条件配图
     c = cells(7); _set(c[1], test.get("condition", "")); _vcenter(c[1])
     _append_cond_images(c[1], doc, test.get("condition_images", []))
-    # R7 试验条件：拉高填满第一页剩余空间（设最小行高）
-    _row_min_height(rows[7], 8000)
-    # R8 试验要求（跨列）：从新一页开始（避免条件图多时担乱版面）
+    # R7 试验条件：在「不脱离第一页」的前提下尽量拉高——按页面可用高度减去
+    # 标题/编号/信息行(R0~R6)后剩余的空间来定，避免整行被挤到单独一页。
+    h7 = _page1_r7_height(doc, rows)
+    if h7 > 0:
+        _row_min_height(rows[7], h7)
+    # R8 试验要求（跨列）：从新一页开始（试验要求及其后整块推到第二页）
     c = cells(8); _set(c[1], test.get("requirement", "")); _page_break_before_cell(c[0])
-    # R10 试验状态：拉到最大
-    _row_min_height(rows[10], 9000)
+    # R10 试验状态：拉到第二页剩余空间的最大
+    h10 = _page2_status_height(doc, rows)
+    if h10 > 0:
+        _row_min_height(rows[10], h10)
     # R9~R12、R14 为签字/状态/判定/备注等手填栏，保持模板原样不动
     # R13 测试日期：把开始/结束时间填进模板那句固定格式的话术里
     _fill_test_date(cells(13)[1], test)
@@ -103,6 +108,56 @@ def _row_min_height(row_el, twips):
         trPr.append(trH)
     trH.set(qn('w:val'), str(int(twips)))
     trH.set(qn('w:hRule'), 'atLeast')
+
+
+def _usable_text_height(doc):
+    """正文可用高度(twips) = 页高 - 上下页边距。"""
+    sec = doc.sections[0]
+    try:
+        return int(sec.page_height.twips) - int(sec.top_margin.twips) - int(sec.bottom_margin.twips)
+    except Exception:
+        return 14500  # A4 常见值兜底
+
+
+def _rows_height_sum(rows, idxs):
+    """若干行的最小行高(trHeight)之和(twips)，没设高度的按 0 计。"""
+    tot = 0
+    for i in idxs:
+        trPr = rows[i].find(qn('w:trPr'))
+        if trPr is None:
+            continue
+        trH = trPr.find(qn('w:trHeight'))
+        if trH is not None and trH.get(qn('w:val')):
+            try:
+                tot += int(trH.get(qn('w:val')))
+            except Exception:
+                pass
+    return tot
+
+
+# 标题(试验记录表, sz30)+编号行(sz24)+段间距，实测约占这么多 twips；
+# 加一点安全余量，宁可 R7 稍矮留白，也不要溢出把整行挤到下一页。
+_HEADER_PARA_TWIPS = 1400
+_PAGE1_SAFETY_TWIPS = 300
+
+
+def _page1_r7_height(doc, rows):
+    """R7(试验条件)在第一页能占的最大行高：
+    可用高度 - 标题/编号 - 信息行(R0~R6) - 安全余量。
+    这样 R7 拉到最大又不会脱离第一页。"""
+    usable = _usable_text_height(doc)
+    info_h = _rows_height_sum(rows, range(0, 7))
+    h = usable - _HEADER_PARA_TWIPS - info_h - _PAGE1_SAFETY_TWIPS
+    return max(0, h)
+
+
+def _page2_status_height(doc, rows):
+    """R10(试验状态)在第二页能占的最大行高：
+    第二页从 R8 起，可用高度 - 其余行(R8,R9,R11~R14) - 安全余量。"""
+    usable = _usable_text_height(doc)
+    others = _rows_height_sum(rows, [8, 9, 11, 12, 13, 14])
+    h = usable - others - _PAGE1_SAFETY_TWIPS
+    return max(0, h)
 
 
 def _page_break_before_cell(tc):
