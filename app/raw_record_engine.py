@@ -66,8 +66,12 @@ def _fill_table(tbl_el, info, test, doc):
     # R7 试验条件（跨列）：文字上下居中，其下追加试验条件配图
     c = cells(7); _set(c[1], test.get("condition", "")); _vcenter(c[1])
     _append_cond_images(c[1], doc, test.get("condition_images", []))
-    # R8 试验要求（跨列）
-    c = cells(8); _set(c[1], test.get("requirement", ""))
+    # R7 试验条件：拉高填满第一页剩余空间（设最小行高）
+    _row_min_height(rows[7], 8000)
+    # R8 试验要求（跨列）：从新一页开始（避免条件图多时担乱版面）
+    c = cells(8); _set(c[1], test.get("requirement", "")); _page_break_before_cell(c[0])
+    # R10 试验状态：拉到最大
+    _row_min_height(rows[10], 9000)
     # R9~R12、R14 为签字/状态/判定/备注等手填栏，保持模板原样不动
     # R13 测试日期：把开始/结束时间填进模板那句固定格式的话术里
     _fill_test_date(cells(13)[1], test)
@@ -87,11 +91,86 @@ def _vcenter(tc):
     vA.set(qn('w:val'), 'center')
 
 
+def _row_min_height(row_el, twips):
+    """给行设最小行高（atLeast），使单元格纵向拉高填满页面。twips：1cm≈567。"""
+    trPr = row_el.find(qn('w:trPr'))
+    if trPr is None:
+        trPr = row_el.makeelement(qn('w:trPr'), {})
+        row_el.insert(0, trPr)
+    trH = trPr.find(qn('w:trHeight'))
+    if trH is None:
+        trH = trPr.makeelement(qn('w:trHeight'), {})
+        trPr.append(trH)
+    trH.set(qn('w:val'), str(int(twips)))
+    trH.set(qn('w:hRule'), 'atLeast')
+
+
+def _page_break_before_cell(tc):
+    """给单元格首段加 pageBreakBefore，使该行从新一页开始。"""
+    p = tc.find(qn('w:p'))
+    if p is None:
+        return
+    ppr = p.find(qn('w:pPr'))
+    if ppr is None:
+        ppr = p.makeelement(qn('w:pPr'), {})
+        p.insert(0, ppr)
+    if ppr.find(qn('w:pageBreakBefore')) is None:
+        ppr.insert(0, ppr.makeelement(qn('w:pageBreakBefore'), {}))
+
+
 def _append_cond_images(tc, doc, imgs):
-    """在试验条件文字下方追加配图。复用主报告引擎的插图逻辑（同尺寸/居中/图注）。"""
+    """在试验条件文字下方追加配图：每行横排 2 张，避免竖排把版面撑乱。
+    在单元格内嵌一张 2 列表格承载图片（无边框、居中）。"""
     if not imgs:
         return
-    E.append_pictures_to_cell(tc, doc, imgs)
+    from docx.table import Table, _Cell
+    cell = _Cell(tc, Table(tc.getparent().getparent(), doc))
+    nrows = (len(imgs) + 1) // 2
+    nested = cell.add_table(rows=nrows, cols=2)
+    try:
+        nested.autofit = True
+    except Exception:
+        pass
+    _no_borders(nested._tbl)
+    for idx, im in enumerate(imgs):
+        r, c = idx // 2, idx % 2
+        ncell = nested.cell(r, c)
+        p = ncell.paragraphs[0]
+        p.alignment = 1  # center
+        run = p.add_run()
+        try:
+            stream, size = E.normalize_image(im["path"])
+            w, h = E._target_size(size)
+            run.add_picture(stream, width=w, height=h)
+        except Exception:
+            w, h = E._target_size(None)
+            run.add_picture(im["path"], width=w, height=h)
+        cap = im.get("caption", "")
+        if cap:
+            cp = ncell.add_paragraph(cap)
+            cp.alignment = 1
+            for rr in cp.runs:
+                E.force_song5(rr._r)
+
+
+def _no_borders(tbl_el):
+    """把内嵌表格的四周及内部边框全部设为 none。"""
+    tblPr = tbl_el.find(qn('w:tblPr'))
+    if tblPr is None:
+        tblPr = tbl_el.makeelement(qn('w:tblPr'), {})
+        tbl_el.insert(0, tblPr)
+    borders = tblPr.find(qn('w:tblBorders'))
+    if borders is None:
+        borders = tblPr.makeelement(qn('w:tblBorders'), {})
+        tblPr.append(borders)
+    for edge in ('top', 'left', 'bottom', 'right', 'insideH', 'insideV'):
+        e = borders.find(qn('w:' + edge))
+        if e is None:
+            e = borders.makeelement(qn('w:' + edge), {})
+            borders.append(e)
+        e.set(qn('w:val'), 'none')
+        e.set(qn('w:sz'), '0')
+        e.set(qn('w:space'), '0')
 
 
 def _fill_test_date(tc, test):
