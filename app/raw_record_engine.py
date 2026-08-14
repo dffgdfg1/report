@@ -64,18 +64,26 @@ def _fill_table(tbl_el, info, test, doc):
     # R6 试验项目 / 试验标准
     c = cells(6); _set(c[1], test.get("title", "")); _set(c[3], test.get("standard", ""))
     # R7 试验条件（跨列）：文字上下居中，其下追加试验条件配图
-    c = cells(7); _set(c[1], test.get("condition", "")); _vcenter(c[1])
-    _append_cond_images(c[1], doc, test.get("condition_images", []))
-    # R7 试验条件：在「不脱离第一页」的前提下尽量拉高——按页面可用高度减去
-    # 标题/编号/信息行(R0~R6)后剩余的空间来定，避免整行被挤到单独一页。
-    h7 = _page1_r7_height(doc, rows)
-    if h7 > 0:
-        _row_min_height(rows[7], h7)
-    # R8 试验要求（跨列）：从新一页开始（试验要求及其后整块推到第二页）
-    c = cells(8); _set(c[1], test.get("requirement", "")); _page_break_before_cell(c[0])
-    # R10 试验状态：拉到第二页剩余空间的最大
-    h10 = _page2_status_height(doc, rows)
-    if h10 > 0:
+    _cond_text = test.get("condition", "")
+    _cond_imgs = test.get("condition_images", [])
+    c = cells(7); _set(c[1], _cond_text); _vcenter(c[1])
+    _append_cond_images(c[1], doc, _cond_imgs)
+    # 仅当试验条件内容较多（有配图或文字超阈值）时，才分页+撕框；
+    # 内容少时保持默认行高、不插分页符，避免产生空白页。
+    _need_split = bool(_cond_imgs) or _condition_is_long(_cond_text)
+    if _need_split:
+        h7 = _page1_r7_height(doc, rows)
+        if h7 > 0:
+            _row_min_height(rows[7], h7)
+    # R8 试验要求（跨列）
+    c = cells(8); _set(c[1], test.get("requirement", ""))
+    if _need_split:
+        _page_break_before_cell(c[0])
+    # R10 试验状态：仅分页模式下才拉高
+    if _need_split:
+        h10 = _page2_status_height(doc, rows)
+        if h10 > 0:
+            _row_min_height(rows[10], h10)
         _row_min_height(rows[10], h10)
     # R9~R12、R14 为签字/状态/判定/备注等手填栏，保持模板原样不动
     # R13 测试日期：把开始/结束时间填进模板那句固定格式的话术里
@@ -119,19 +127,32 @@ def _usable_text_height(doc):
         return 14500  # A4 常见值兜底
 
 
+# 模板各行默认行高(twips)，当行元素没有显式 w:trHeight 时用作兆底
+_DEFAULT_ROW_HEIGHTS = {
+    0: 510, 1: 510, 2: 510, 3: 510,
+    4: 637, 5: 680, 6: 510, 7: 2283,
+    8: 631, 9: 567, 10: 3331, 11: 601,
+    12: 400, 13: 417, 14: 455,
+}
+
+
 def _rows_height_sum(rows, idxs):
-    """若干行的最小行高(trHeight)之和(twips)，没设高度的按 0 计。"""
+    """若干行的最小行高(trHeight)之和(twips)。
+    有显式 w:trHeight 用显式值；否则回退到模板默认行高。"""
     tot = 0
     for i in idxs:
+        val = None
         trPr = rows[i].find(qn('w:trPr'))
-        if trPr is None:
-            continue
-        trH = trPr.find(qn('w:trHeight'))
-        if trH is not None and trH.get(qn('w:val')):
-            try:
-                tot += int(trH.get(qn('w:val')))
-            except Exception:
-                pass
+        if trPr is not None:
+            trH = trPr.find(qn('w:trHeight'))
+            if trH is not None and trH.get(qn('w:val')):
+                try:
+                    val = int(trH.get(qn('w:val')))
+                except Exception:
+                    pass
+        if val is None:
+            val = _DEFAULT_ROW_HEIGHTS.get(i, 0)
+        tot += val
     return tot
 
 
@@ -139,6 +160,20 @@ def _rows_height_sum(rows, idxs):
 # 加一点安全余量，宁可 R7 稍矮留白，也不要溢出把整行挤到下一页。
 _HEADER_PARA_TWIPS = 1400
 _PAGE1_SAFETY_TWIPS = 300
+
+
+def _condition_is_long(text):
+    """判断试验条件文字是否足够长，需要分页排版。
+    有3行及以上换行，或总字符数超 150，视为「较长」。"""
+    if not text:
+        return False
+    if text.count('\n') >= 3:
+        return True
+    return len(text) > 150
+
+
+
+
 
 
 def _page1_r7_height(doc, rows):
