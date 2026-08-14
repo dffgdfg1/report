@@ -1126,10 +1126,11 @@ def api_generate_raw():
                     "size": os.path.getsize(f)
                 } for f in result]
                 return jsonify({"ok": True, "files": files_info, "count": len(files_info)})
+            else:
+                return jsonify({"ok": True, "file": os.path.basename(result), "size": os.path.getsize(result)})
         except PermissionError:
             return jsonify({"ok": False,
                 "error": "无法写入原始记录文件，可能它正在 WPS/Word 中打开。请先关闭已打开的「%s_原始记录.docx」再重试。" % safe_name(name)}), 200
-            return jsonify({"ok": True, "file": os.path.basename(result), "size": os.path.getsize(result)})
     except Exception as ex:
         import traceback
         tb = traceback.format_exc()
