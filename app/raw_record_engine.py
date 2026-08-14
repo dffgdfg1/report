@@ -159,7 +159,7 @@ def _rows_height_sum(rows, idxs):
 # 标题(试验记录表, sz30)+编号行(sz24)+段间距，实测约占这么多 twips；
 # 加一点安全余量，宁可 R7 稍矮留白，也不要溢出把整行挤到下一页。
 _HEADER_PARA_TWIPS = 1400
-_PAGE1_SAFETY_TWIPS = 300
+_PAGE1_SAFETY_TWIPS = 1200
 
 
 def _condition_is_long(text):
