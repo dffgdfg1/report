@@ -213,7 +213,19 @@ def put_picture(tc, doc, img_path, caption=""):
         w, h = _target_size(None)
         run.add_picture(img_path, width=w, height=h)
     if caption:
-        cp = cell.add_paragraph(caption)
+        # 如果标题末尾有空格，用斜杠填充到固定长度
+        caption_text = caption
+        if caption_text.endswith(' '):
+            # 去掉末尾空格，计算需要填充的长度
+            base_text = caption_text.rstrip()
+            # 填充到约25个字符宽度（中文字符算2个宽度）
+            target_width = 40
+            current_width = sum(2 if '一' <= c <= '鿿' else 1 for c in base_text)
+            if current_width < target_width:
+                fill_count = target_width - current_width
+                caption_text = base_text + ' ' + '/' * fill_count
+
+        cp = cell.add_paragraph(caption_text)
         cp.alignment = 1
         for r in cp.runs:
             force_song5(r._r)
@@ -612,11 +624,27 @@ def fill_summary(doc, tests):
     for i, t in enumerate(tests, 1):
         r = clone(data_tmpl)
         # 模板数据行设了固定行高(trHeight≈936，约3行高)，会把单行内容撑高多出空行；
-        # 去掉强制高度，让行高自适应内容
+        # 获取标题行高度，统一设置所有数据行为相同高度
+        header_height = None
+        for hr in header_rows:
+            trpr = hr.find(W + 'trPr')
+            if trpr is not None:
+                th = trpr.find(W + 'trHeight')
+                if th is not None:
+                    header_height = th.get(W + 'val')
+                    break
+        
+        # 设置数据行高度与标题行一致
         trpr = r.find(W + 'trPr')
-        if trpr is not None:
+        if trpr is not None and header_height:
+            # 移除旧的高度设置
             for th in trpr.findall(W + 'trHeight'):
                 trpr.remove(th)
+            # 设置新高度
+            new_th = makeelement(W + 'trHeight')
+            new_th.set(W + 'val', header_height)
+            new_th.set(W + 'hRule', 'atLeast')
+            trpr.append(new_th)
         c = row_cells(r)
         vals = [str(i), t.get("title", ""), t.get("standard", ""),
                 t.get("sample_no", ""), t.get("start_date", ""),
