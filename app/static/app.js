@@ -25,10 +25,11 @@ let saveTimer = null;
 // 记录最近一次点击/悬停的图片上传区，粘贴截图(Ctrl+V)时图片进这里
 let PASTE_TARGET = null;
 
-// 与后端 safe_name 完全一致：非[数字/字母/_/-/中文]的字符 → _。
+// 与后端 safe_name 完全一致：/ 替换为全角斜杠 ／，其他非法字符 → _。
 // 用于构造 /api/image 的路径，避免项目名里的斜杠(如 ME/WTD、YJ/SYBG)导致取图 404。
 function safeName(s) {
-  s = (s || "").trim().replace(/[^0-9A-Za-z_\-一-鿿]/g, "_");
+  s = (s || "").trim().replace(/\//g, "／");
+  s = s.replace(/[^0-9A-Za-z_\-一-鿿／]/g, "_");
   return s || "未命名";
 }
 function imageUrl(file) {
