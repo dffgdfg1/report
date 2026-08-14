@@ -38,6 +38,13 @@ def _join(items):
 
 def _fill_table(tbl_el, info, test, doc):
     """填一张原始记录表（15 行）。tbl_el 为 <w:tbl> 元素。"""
+    # 移除表格浮动属性，让表格可以跨页
+    tblPr = tbl.find(qn('w:tblPr'))
+    if tblPr is not None:
+        tblpPr = tblPr.find(qn('w:tblpPr'))
+        if tblpPr is not None:
+            tblPr.remove(tblpPr)
+    
     rows = tbl_el.findall(W + 'tr')
 
     def cells(ri):
