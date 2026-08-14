@@ -942,6 +942,85 @@ function showResultActions(file, size, noun) {
   mask.style.display = "flex";
 }
 
+function showMultiFileResults(files, noun) {
+  noun = noun || "文件";
+  const mask = $("#resultModal"), fileBox = $("#resultFile"), actions = $("#resultActions");
+  if (!mask || !fileBox || !actions) {
+    alert(`${noun}已生成 ${files.length} 个文件。请前往输出目录查看。`);
+    return;
+  }
+  
+  // Build file list HTML with checkboxes
+  let html = `<div style="margin-bottom:10px;">
+    <label style="cursor:pointer;">
+      <input type="checkbox" id="selectAllFiles" checked style="margin-right:5px;">
+      <b>全选 / 取消全选</b>
+    </label>
+  </div>`;
+  html += `<div style="max-height:200px;overflow-y:auto;border:1px solid #ddd;border-radius:3px;padding:5px;">`;
+  files.forEach((f, idx) => {
+    const mb = (f.size / 1048576).toFixed(1);
+    html += `<div style="margin:5px 0;padding:5px;background:#f5f5f5;border-radius:3px;">`;
+    html += `<label style="cursor:pointer;display:block;">`;
+    html += `<input type="checkbox" class="file-checkbox" data-file="${escAttr(f.file)}" checked style="margin-right:8px;">`;
+    html += `📄 ${escAttr(f.file)} <span class="fsize">(${mb} MB)</span>`;
+    html += `</label>`;
+    html += `</div>`;
+  });
+  html += `</div>`;
+  fileBox.innerHTML = html;
+  
+  // Setup select all checkbox handler
+  const selectAll = document.getElementById('selectAllFiles');
+  const checkboxes = document.querySelectorAll('.file-checkbox');
+  
+  selectAll.addEventListener('change', () => {
+    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+  });
+  
+  // Update select all when individual checkboxes change
+  checkboxes.forEach(cb => {
+    cb.addEventListener('change', () => {
+      const allChecked = [...checkboxes].every(c => c.checked);
+      const noneChecked = [...checkboxes].every(c => !c.checked);
+      selectAll.checked = allChecked;
+      selectAll.indeterminate = !allChecked && !noneChecked;
+    });
+  });
+  
+  const titleReset = mask.querySelector(".modal-head b");
+  if (titleReset) titleReset.textContent = `✓ ${noun}已生成 (${files.length}个文件)`;
+  
+  actions.innerHTML = "";
+  const close = () => { mask.style.display = "none"; };
+  const mkBtn = (label, cls, fn) => { const b = el("button", cls); b.textContent = label; b.onclick = fn; return b; };
+  
+  // Download selected button
+  const downloadBtn = mkBtn(`下载选中`, "btn-primary", () => {
+    const selected = [...document.querySelectorAll('.file-checkbox:checked')];
+    if (selected.length === 0) {
+      alert('请至少选择一个文件');
+      return;
+    }
+    selected.forEach(cb => {
+      const fileName = cb.getAttribute('data-file');
+      const link = document.createElement('a');
+      link.href = "/api/download?file=" + encodeURIComponent(fileName);
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+    toast(`正在下载 ${selected.length} 个文件`);
+  });
+  
+  actions.appendChild(downloadBtn);
+  actions.appendChild(mkBtn("关闭", "btn-secondary", close));
+  
+  mask.style.display = "flex";
+}
+
+
 // 生成前必填校验：返回问题列表
 function validateBeforeGenerate() {
   const problems = [];
@@ -1011,7 +1090,13 @@ async function generateRaw() {
     const j = await readJSON(r);
     if (!j.ok) { alert("生成失败：" + (j.error || "")); status("生成失败"); return; }
     status("原始记录生成完成 ✓");
-    showResultActions(j.file, j.size, "原始记录");
+    // Handle single or multiple files
+    if (j.files && j.count > 1) {
+      status(`原始记录生成完成 ✓ (${j.count}个文件)`);
+      showMultiFileResults(j.files, "原始记录");
+    } else {
+      showResultActions(j.file, j.size, "原始记录");
+    }
   } catch (e) {
     if (String(e).includes("Failed to fetch")) {
       alert("生成过程中与后台断开了连接。\n\n多半是那个黑色命令行窗口被关闭了。\n请重新双击「启动.bat」，刷新页面后再生成。\n（你的进度已保存，不会丢失。）");

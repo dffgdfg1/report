@@ -1118,11 +1118,18 @@ def api_generate_raw():
             proj["tests"].append(tt)
         out = os.path.join(OUT_DIR, safe_name(name) + "_原始记录.docx")
         try:
-            RR.generate_raw_records(proj, out)
+            result = RR.generate_raw_records(proj, out)
+            # Handle single file or multiple files
+            if isinstance(result, list):
+                files_info = [{
+                    "file": os.path.basename(f),
+                    "size": os.path.getsize(f)
+                } for f in result]
+                return jsonify({"ok": True, "files": files_info, "count": len(files_info)})
         except PermissionError:
             return jsonify({"ok": False,
                 "error": "无法写入原始记录文件，可能它正在 WPS/Word 中打开。请先关闭已打开的「%s_原始记录.docx」再重试。" % safe_name(name)}), 200
-        return jsonify({"ok": True, "file": os.path.basename(out), "size": os.path.getsize(out)})
+            return jsonify({"ok": True, "file": os.path.basename(result), "size": os.path.getsize(result)})
     except Exception as ex:
         import traceback
         tb = traceback.format_exc()

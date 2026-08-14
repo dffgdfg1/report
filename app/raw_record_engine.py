@@ -309,36 +309,43 @@ def _fill_record_no(doc, no):
 
 
 def generate_raw_records(project, out_path):
-    """project: {info:{...}, tests:[{...}]} -> 生成 out_path(.docx)。
-    每个测试项一张原始记录表，多项之间分页。"""
+    """project: {info:{...}, tests:[{...}]} -> 为每个测试项生成独立的原始记录文档。
+    返回生成的文件路径列表。out_path 作为基准路径，实际文件名会加上测试项目名或序号。"""
     info = project.get("info", {}) or {}
     tests = project.get("tests", []) or []
     if not tests:
-        tests = [{}]  # 没有测试项也产出一张空表，避免空文档
-
-    doc = Document(SKELETON)
-    # 「编号：」段落填委托单号
-    _fill_record_no(doc, info.get("commission_no", ""))
-    tmpl_tbl = doc.tables[0]._tbl
-    # 先留一份未填写的空白模板副本，供后续每张记录克隆（否则会克隆到已填数据）
-    blank_tbl = copy.deepcopy(tmpl_tbl)
-
-    # 第一张：直接填模板里已有的表
-    _fill_table(tmpl_tbl, info, tests[0], doc)
-    last_el = tmpl_tbl
-
-    # 其余每张：分页符 + 克隆空白模板表再填
-    for t in tests[1:]:
-        pbreak = _make_page_break(doc)
-        last_el.addnext(pbreak)
-        new_tbl = copy.deepcopy(blank_tbl)
-        pbreak.addnext(new_tbl)
-        _fill_table(new_tbl, info, t, doc)
-        last_el = new_tbl
-
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    doc.save(out_path)
-    return out_path
+        tests = [{}]  # 没有测试项也产出一张空表
+    
+    # 解析 out_path: 目录 + 基础文件名
+    out_dir = os.path.dirname(out_path)
+    base_name = os.path.splitext(os.path.basename(out_path))[0]
+    
+    generated_files = []
+    
+    for idx, test in enumerate(tests):
+        # 为每个测试项生成独立文档
+        doc = Document(SKELETON)
+        _fill_record_no(doc, info.get("commission_no", ""))
+        tbl = doc.tables[0]._tbl
+        _fill_table(tbl, info, test, doc)
+        
+        # 文件命名：基础名_测试项目名.docx 或 基础名_序号.docx
+        test_title = test.get("title", "").strip()
+        if test_title:
+            # 清理文件名非法字符
+            safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_', '（', '）', '(', ')') else '_' 
+                                for c in test_title)
+            file_name = f"{base_name}_{safe_title}.docx"
+        else:
+            file_name = f"{base_name}_{idx+1}.docx"
+        
+        file_path = os.path.join(out_dir, file_name)
+        os.makedirs(out_dir, exist_ok=True)
+        doc.save(file_path)
+        generated_files.append(file_path)
+    
+    # 返回文件路径列表（保持向后兼容，第一个文件路径也作为主返回值）
+    return generated_files if len(generated_files) > 1 else generated_files[0] if generated_files else out_path
 
 
 def _make_page_break(doc):
