@@ -1257,6 +1257,9 @@ function stdImgRow(r) {
 
   const dz = el("div", "std-img-dz", "＋ 点击上传附图（PSD谱 / 曲线 / 表格截图等，可多选）");
   const fi = el("input"); fi.type = "file"; fi.accept = "image/*"; fi.multiple = true; fi.style.display = "none";
+  // 支持 Ctrl+V 粘贴截图
+  if (!r._stdImages) r._stdImages = [];  // 临时数组用于粘贴目标
+  dz.onmouseenter = () => { PASTE_TARGET = { t: null, arr: r._stdImages, dz, isStd: true, stdRow: r }; setPasteHint(dz); };
   dz.onclick = () => fi.click();
   fi.onchange = () => stdImgUpload(r, fi.files);
   wrap.appendChild(dz); wrap.appendChild(fi);
@@ -1632,7 +1635,12 @@ function bindPasteImages() {
       const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg");
       return new File([f], `粘贴截图_${stamp}_${i + 1}.${ext}`, { type: f.type });
     });
-    handleFiles(named, PASTE_TARGET.t, PASTE_TARGET.arr);
+    // 标准库的图片用专门的上传接口
+    if (PASTE_TARGET.isStd) {
+      stdImgUpload(PASTE_TARGET.stdRow, named);
+    } else {
+      handleFiles(named, PASTE_TARGET.t, PASTE_TARGET.arr);
+    }
   });
 }
 init();

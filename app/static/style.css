@@ -184,6 +184,7 @@ table.rows td { vertical-align: top; }
 .std-img-del:hover { background: #d33; }
 .std-img-dz { margin-top: 12px; border: 2px dashed #b8c4e0; border-radius: 8px; padding: 16px; text-align: center; color: #6d7c99; font-size: 13px; cursor: pointer; background: #fff; }
 .std-img-dz:hover { border-color: #1f6feb; color: #1f6feb; background: #f6f9ff; }
+.std-img-dz.paste-active { border-color: #1f6feb; color: #1f6feb; background: #f0f7ff; box-shadow: 0 0 0 3px rgba(31,111,235,0.1); }
 
 /* ===== 设备库 ===== */
 .modal-tip { padding: 8px 16px; background: #f6f9ff; color: #4a5a7a; font-size: 12.5px; line-height: 1.6; border-bottom: 1px solid #eef0f4; }
