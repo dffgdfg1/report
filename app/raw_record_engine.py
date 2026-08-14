@@ -71,11 +71,11 @@ def _fill_table(tbl_el, info, test, doc):
     # 仅当试验条件内容较多（有配图或文字超阈值）时，才分页+撕框；
     # 内容少时保持默认行高、不插分页符，避免产生空白页。
     _need_split = bool(_cond_imgs) or _condition_is_long(_cond_text)
-    if _need_split:
-        h7 = _page1_r7_height(doc, rows)
-        if h7 > 0:
-            _row_min_height(rows[7], h7)
-    # R8 试验要求（跨列）
+    # 暂时禁用 R7 撑高，避免第一页表格被推走
+    # if _need_split:
+    #     h7 = _page1_r7_height(doc, rows)
+    #     if h7 > 0:
+    #         _row_min_height(rows[7], h7)
     c = cells(8); _set(c[1], test.get("requirement", ""))
     if _need_split:
         _page_break_before_cell(c[0])
@@ -84,7 +84,6 @@ def _fill_table(tbl_el, info, test, doc):
         h10 = _page2_status_height(doc, rows)
         if h10 > 0:
             _row_min_height(rows[10], h10)
-        _row_min_height(rows[10], h10)
     # R9~R12、R14 为签字/状态/判定/备注等手填栏，保持模板原样不动
     # R13 测试日期：把开始/结束时间填进模板那句固定格式的话术里
     _fill_test_date(cells(13)[1], test)
