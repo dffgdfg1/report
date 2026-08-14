@@ -187,12 +187,11 @@ def _page1_r7_height(doc, rows):
 
 
 def _page2_status_height(doc, rows):
-    """R10(试验状态)在第二页能占的最大行高：
-    第二页从 R8 起，可用高度 - 其余行(R8,R9,R11~R14) - 安全余量。"""
-    usable = _usable_text_height(doc)
-    others = _rows_height_sum(rows, [8, 9, 11, 12, 13, 14])
-    h = usable - others - _PAGE1_SAFETY_TWIPS
-    return max(0, h)
+    """R10(试验状态)在分页模式下的合理高度。
+    不撑满整页（会把 R11~R14 挤走产生空白），而是固定一个较大值。"""
+    # 固定拉高到约 6000 twips (约 10.5cm)，足够容纳较多内容，
+    # 又不至于把签字行挤到单独页造成空白。
+    return 6000
 
 
 def _page_break_before_cell(tc):
