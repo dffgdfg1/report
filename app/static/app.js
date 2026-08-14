@@ -1091,10 +1091,14 @@ async function generateRaw() {
     if (!j.ok) { alert("生成失败：" + (j.error || "")); status("生成失败"); return; }
     status("原始记录生成完成 ✓");
     // Handle single or multiple files
-    if (j.files && j.count > 1) {
+    if (j.files && j.files.length > 1) {
       status(`原始记录生成完成 ✓ (${j.count}个文件)`);
       showMultiFileResults(j.files, "原始记录");
+    } else if (j.files && j.files.length === 1) {
+      // Single file returned as array
+      showResultActions(j.files[0].file, j.files[0].size, "原始记录");
     } else {
+      // Legacy single file format
       showResultActions(j.file, j.size, "原始记录");
     }
   } catch (e) {

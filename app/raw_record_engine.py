@@ -345,7 +345,8 @@ def generate_raw_records(project, out_path):
         generated_files.append(file_path)
     
     # 返回文件路径列表（保持向后兼容，第一个文件路径也作为主返回值）
-    return generated_files if len(generated_files) > 1 else generated_files[0] if generated_files else out_path
+    # 始终返回列表，简化调用方逻辑
+    return generated_files
 
 
 def _make_page_break(doc):
