@@ -621,20 +621,24 @@ def fill_summary(doc, tests):
             for p in paras:
                 if id(p) not in keep:
                     tc.remove(p)
+    # 表头「序号」是跨 R0+R1 两行合并的单元格，其可视高度 = 两行高度之和。
+    # 数据行要跟「序号」这一格一样高，所以取两个表头行高度之和作为数据行高度。
+    header_height_sum = 0
+    for hr in header_rows:
+        trpr = hr.find(W + 'trPr')
+        if trpr is not None:
+            th = trpr.find(W + 'trHeight')
+            if th is not None:
+                try:
+                    header_height_sum += int(th.get(W + 'val') or 0)
+                except (TypeError, ValueError):
+                    pass
+    header_height = str(header_height_sum) if header_height_sum else None
+
     for i, t in enumerate(tests, 1):
         r = clone(data_tmpl)
         # 模板数据行设了固定行高(trHeight≈936，约3行高)，会把单行内容撑高多出空行；
-        # 获取标题行高度，统一设置所有数据行为相同高度
-        header_height = None
-        for hr in header_rows:
-            trpr = hr.find(W + 'trPr')
-            if trpr is not None:
-                th = trpr.find(W + 'trHeight')
-                if th is not None:
-                    header_height = th.get(W + 'val')
-                    break
-        
-        # 设置数据行高度与标题行一致
+        # 设置数据行高度与「序号」表头单元格(跨两行)一致
         trpr = r.find(W + 'trPr')
         if trpr is not None and header_height:
             # 移除旧的高度设置
