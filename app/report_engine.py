@@ -645,7 +645,7 @@ def fill_summary(doc, tests):
             for th in trpr.findall(W + 'trHeight'):
                 trpr.remove(th)
             # 设置新高度
-            new_th = makeelement(W + 'trHeight')
+            new_th = trpr.makeelement(W + 'trHeight', {})
             new_th.set(W + 'val', header_height)
             new_th.set(W + 'hRule', 'atLeast')
             trpr.append(new_th)
