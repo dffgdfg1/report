@@ -92,8 +92,7 @@ def _fill_table(tbl_el, info, test, doc):
         h10 = _page2_status_height(doc, rows)
         if h10 > 0:
             _row_min_height(rows[10], h10)
-    # R13 测试日期：把开始/结束时间填进模板那句固定格式的话术里
-    _fill_test_date(cells(13)[1], test)
+    # R13 测试日期：保留模板原样(空白下划线)，由用户手动填写，不自动填入
 
 
 def _vcenter(tc):
@@ -266,24 +265,6 @@ def _no_borders(tbl_el):
         e.set(qn('w:val'), 'none')
         e.set(qn('w:sz'), '0')
         e.set(qn('w:space'), '0')
-
-
-def _fill_test_date(tc, test):
-    """R13：模板文本为『测试开始时间：   测试结束时间：   时间：  小时』，
-    把开始/结束日期插到对应标签后面，保留其余格式与空格。"""
-    sd = str(test.get("start_date", "") or "").strip()
-    ed = str(test.get("end_date", "") or "").strip()
-    if not sd and not ed:
-        return
-    cur = "".join(n.text or "" for n in tc.iter(W + 't'))
-    if "测试开始时间" not in cur:
-        # 模板话术若被改动，退化为直接写区间
-        _set(tc, "测试开始时间：%s   测试结束时间：%s" % (sd, ed))
-        return
-    new = cur
-    new = new.replace("测试开始时间：", "测试开始时间：%s " % sd, 1)
-    new = new.replace("测试结束时间：", "测试结束时间：%s " % ed, 1)
-    _set(tc, new)
 
 
 def _fill_record_no(doc, no):
