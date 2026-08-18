@@ -167,8 +167,9 @@ _HEADER_PARA_TWIPS = 1400
 _PAGE1_SAFETY_TWIPS = 1200
 
 
-# R7 试验条件值单元格跨3列约14.8cm，9pt宋体一行约放这么多「字宽」(中文=2,ASCII=1)
-_COND_CHARS_PER_LINE = 44
+# R7 试验条件值单元格跨3列(宽8391twips≈14.8cm)，9pt宋体一行约放46个中文字。
+# 按「字宽」计(中文/全角=2, ASCII=1)，一行约 92 个字宽，留点余量取 88。
+_COND_CHARS_PER_LINE = 88
 _COND_LINE_TWIPS = 260      # 9pt 单行约占高度(twips)
 _COND_CELL_PAD_TWIPS = 300  # 单元格上下内边距余量
 
