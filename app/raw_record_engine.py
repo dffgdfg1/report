@@ -328,7 +328,7 @@ def generate_raw_records(project, out_path):
         _fill_record_no(doc, info.get("commission_no", ""))
         tbl = doc.tables[0]._tbl
         _fill_table(tbl, info, test, doc)
-        _normalize_font_size(doc)  # 宋体小五(sz18) 统一改五号(sz21)
+        _normalize_font_size(doc)  # 全文五号(sz21) 统一压回小五(sz18)
         
         # 文件命名：基础名_测试项目名.docx 或 基础名_序号.docx
         test_title = test.get("title", "").strip()
@@ -351,16 +351,18 @@ def generate_raw_records(project, out_path):
 
 
 def _normalize_font_size(doc):
-    """把全文宋体小五(sz=18=9pt)统一改成五号(sz=21=10.5pt)。
-    标题(sz30)、编号行(sz24)等其它字号保留不动。"""
+    """把全文五号(sz=21=10.5pt)统一改成小五(sz=18=9pt)。
+    标题(sz30)、编号行(sz24)等其它字号保留不动。
+    注意：填入值经共用的 force_song5 设成了 sz21，这里在填表后统一压回小五，
+    只影响原始记录，不动主报告。"""
     for r in doc.element.body.iter(W + 'r'):
         rpr = r.find(W + 'rPr')
         if rpr is None:
             continue
         for tag in ('sz', 'szCs'):
             e = rpr.find(W + tag)
-            if e is not None and e.get(qn('w:val')) == '18':
-                e.set(qn('w:val'), '21')
+            if e is not None and e.get(qn('w:val')) == '21':
+                e.set(qn('w:val'), '18')
 
 
 def _make_page_break(doc):
