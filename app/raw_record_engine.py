@@ -62,8 +62,8 @@ def _fill_table(tbl_el, info, test, doc):
     c = cells(1); _set(c[1], info.get("sample_no", "")); _set(c[3], info.get("commission_no", ""))
     # R2 样品数量 / 样品编号（样品编号取该测试项的样机编号）
     c = cells(2); _set(c[1], info.get("sample_qty", "")); _set(c[3], test.get("sample_no", ""))
-    # R3 额定电压 / 环境条件
-    c = cells(3); _set(c[1], info.get("rated_volt", "")); _set(c[3], test.get("env", ""))
+    # R3 额定电压 / 环境条件（额定电压有值且未带单位时自动补 V）
+    c = cells(3); _set(c[1], _with_volt_unit(info.get("rated_volt", ""))); _set(c[3], test.get("env", ""))
     # R4 设备名称 / 设备编号
     c = cells(4); _set(c[1], eq_names); _set(c[3], eq_nos)
     # R5 设备型号 / 校准周期
@@ -267,9 +267,28 @@ def _no_borders(tbl_el):
         e.set(qn('w:space'), '0')
 
 
+def _with_volt_unit(v):
+    """额定电压：有值且结尾未带 V/v 时补上单位 V。"""
+    s = str(v or "").strip()
+    if not s:
+        return s
+    if s[-1] in ("V", "v"):
+        return s
+    return s + "V"
+
+
+def _raw_record_no(no):
+    """原始记录编号：把委托单号的 ME/WTD（含全角 ME／WTD）前缀替换为 SY。"""
+    s = str(no or "").strip()
+    for pref in ("ME/WTD", "ME／WTD"):
+        if s.upper().startswith(pref.upper()):
+            return "SY" + s[len(pref):]
+    return s
+
+
 def _fill_record_no(doc, no):
     """把正文「编号：」段落补成「编号：<委托单号>」，保留原字体。"""
-    no = str(no or '').strip()
+    no = _raw_record_no(no)
     if not no:
         return
     for p in doc.paragraphs:
@@ -309,6 +328,7 @@ def generate_raw_records(project, out_path):
         _fill_record_no(doc, info.get("commission_no", ""))
         tbl = doc.tables[0]._tbl
         _fill_table(tbl, info, test, doc)
+        _normalize_font_size(doc)  # 宋体小五(sz18) 统一改五号(sz21)
         
         # 文件命名：基础名_测试项目名.docx 或 基础名_序号.docx
         test_title = test.get("title", "").strip()
@@ -328,6 +348,19 @@ def generate_raw_records(project, out_path):
     # 返回文件路径列表（保持向后兼容，第一个文件路径也作为主返回值）
     # 始终返回列表，简化调用方逻辑
     return generated_files
+
+
+def _normalize_font_size(doc):
+    """把全文宋体小五(sz=18=9pt)统一改成五号(sz=21=10.5pt)。
+    标题(sz30)、编号行(sz24)等其它字号保留不动。"""
+    for r in doc.element.body.iter(W + 'r'):
+        rpr = r.find(W + 'rPr')
+        if rpr is None:
+            continue
+        for tag in ('sz', 'szCs'):
+            e = rpr.find(W + tag)
+            if e is not None and e.get(qn('w:val')) == '18':
+                e.set(qn('w:val'), '21')
 
 
 def _make_page_break(doc):
