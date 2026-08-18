@@ -77,7 +77,7 @@ def _fill_table(tbl_el, info, test, doc):
     _append_cond_images(c[1], doc, _cond_imgs)
     # 仅当试验条件内容较多（有配图或文字超阈值）时，才分页+撕框；
     # 内容少时保持默认行高、不插分页符，避免产生空白页。
-    _need_split = bool(_cond_imgs) or _condition_is_long(_cond_text)
+    _need_split = bool(_cond_imgs) or _condition_is_long(_cond_text, _DEFAULT_ROW_HEIGHTS.get(7))
     # 分页模式下撑高 R7，填满第一页
     if _need_split:
         h7 = _page1_r7_height(doc, rows)
@@ -167,14 +167,35 @@ _HEADER_PARA_TWIPS = 1400
 _PAGE1_SAFETY_TWIPS = 1200
 
 
-def _condition_is_long(text):
-    """判断试验条件文字是否足够长，需要分页排版。
-    有3行及以上换行，或总字符数超 150，视为「较长」。"""
+# R7 试验条件值单元格跨3列约14.8cm，9pt宋体一行约放这么多「字宽」(中文=2,ASCII=1)
+_COND_CHARS_PER_LINE = 44
+_COND_LINE_TWIPS = 260      # 9pt 单行约占高度(twips)
+_COND_CELL_PAD_TWIPS = 300  # 单元格上下内边距余量
+
+
+def _visual_line_count(text, chars_per_line=_COND_CHARS_PER_LINE):
+    """估算文字实际渲染的可视行数：每个显式换行至少占 1 行，
+    过长的行按每行 chars_per_line 个「字宽」自动折行(中文/全角=2, ASCII=1)。"""
+    if not text:
+        return 0
+    total = 0
+    lines = str(text).replace('\r\n', '\n').replace('\r', '\n').split('\n')
+    for line in lines:
+        width = sum(2 if ord(ch) >= 0x2E80 else 1 for ch in line)
+        total += max(1, -(-width // chars_per_line))  # ceil 除法
+    return total
+
+
+def _condition_is_long(text, r7_default=None):
+    """判断试验条件是否多到放不进默认行高、需要分页。
+    按可视行数估算所需高度，只有超过 R7 默认行高时才判定为「长」，
+    避免几行短句(换行多但内容少)被误判成需要分页。"""
     if not text:
         return False
-    if text.count('\n') >= 3:
-        return True
-    return len(text) > 150
+    if r7_default is None:
+        r7_default = _DEFAULT_ROW_HEIGHTS.get(7, 2283)
+    needed = _visual_line_count(text) * _COND_LINE_TWIPS + _COND_CELL_PAD_TWIPS
+    return needed > r7_default
 
 
 
