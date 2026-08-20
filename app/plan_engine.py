@@ -30,9 +30,14 @@ FORMNO_ROW = 5          # 表格编号行
 # 试验标准/方法列(D=4)：嵌图相关尺寸估算
 COND_COL0 = 3            # D 列 0-based
 COND_IMG_MAX_W = 330     # 单张配图最大宽(px)，略小于 D 列宽
-COND_CHARS_PER_LINE = 44 # D 列一行约放的「字宽」(中文=2, ASCII=1)
-COND_LINE_PX = 20        # 14pt 文本单行高(px)
-COND_IMG_GAP_PX = 6      # 图与图/文字之间的间隙(px)
+COND_IMG_MAX_H = 420     # 单张配图最大高(px)，避免竖图把行撑得过高
+# D 列宽约 352px，14pt 宋体每个中文字≈18.7px、ASCII≈9.3px；
+# 一行约放 18 个中文字 ≈ 37 个「字宽」。取 36 略偏保守(宁可行高一点，不让文字被图压住)。
+COND_CHARS_PER_LINE = 36 # D 列一行约放的「字宽」(中文=2, ASCII=1)
+COND_LINE_PX = 24        # 14pt 文本单行高(px，含行距)
+COND_IMG_GAP_PX = 8      # 图与图/文字之间的间隙(px)
+COND_PAD_TOP_PX = 4      # 单元格顶部留白
+COND_PAD_BOTTOM_PX = 8   # 末图与单元格底边留白
 
 
 def _sample_key(t):
@@ -145,7 +150,7 @@ def _set_header(ws, info, applicant):
 
 
 def _embed_cond_images(ws, row, text, imgs):
-    """把试验条件配图竖排嵌进 D 列（row，1-based），文字在上、图在下。
+    """把试验条件配图竖排嵌进 D 列（row，1-based），文字在上、图在下、互不遮挡。
     返回该行需要的最小行高(pt)；无图返回 0。"""
     if not imgs:
         return 0
@@ -154,11 +159,18 @@ def _embed_cond_images(ws, row, text, imgs):
         from openpyxl.drawing.spreadsheet_drawing import OneCellAnchor, AnchorMarker
         from openpyxl.drawing.xdr import XDRPositiveSize2D
         from openpyxl.utils.units import pixels_to_EMU
+        from openpyxl.styles import Alignment
         from PIL import Image as PImage
     except Exception:
         return 0
-    # 文字占高（图从文字下方开始排）
-    y = _text_px_height(text) + COND_IMG_GAP_PX
+    # 关键：让 D 列文字顶端对齐（模板默认垂直居中，行一高文字会跑到中间与图重叠）
+    dcell = ws.cell(row, COND_COL0 + 1)
+    al = dcell.alignment
+    dcell.alignment = Alignment(horizontal=al.horizontal or "left", vertical="top",
+                                wrap_text=True)
+    # 图从文字下方开始竖排：顶部留白 + 文字高 + 间隙
+    y = COND_PAD_TOP_PX + _text_px_height(text) + COND_IMG_GAP_PX
+    placed = 0
     for im in imgs:
         fp = im.get("path", "")
         if not fp or not os.path.exists(fp):
@@ -168,8 +180,13 @@ def _embed_cond_images(ws, row, text, imgs):
                 w0, h0 = pim.size
             if w0 <= 0 or h0 <= 0:
                 continue
+            # 先按宽度缩放，再按高度上限二次缩放，避免竖图过高
             scale = min(1.0, COND_IMG_MAX_W / float(w0))
-            w = int(w0 * scale); h = int(h0 * scale)
+            w = w0 * scale; h = h0 * scale
+            if h > COND_IMG_MAX_H:
+                scale2 = COND_IMG_MAX_H / h
+                w *= scale2; h *= scale2
+            w = int(w); h = int(h)
             xi = XLImage(fp)
             xi.width = w; xi.height = h
             frm = AnchorMarker(col=COND_COL0, colOff=pixels_to_EMU(4),
@@ -178,8 +195,12 @@ def _embed_cond_images(ws, row, text, imgs):
             xi.anchor = OneCellAnchor(_from=frm, ext=size)
             ws.add_image(xi)
             y += h + COND_IMG_GAP_PX
+            placed += 1
         except Exception:
             continue
+    if placed == 0:
+        return 0
+    y += COND_PAD_BOTTOM_PX
     # px -> pt (行高单位)：1px ≈ 0.75pt
     return y * 0.75
 
