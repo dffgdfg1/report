@@ -14,6 +14,7 @@
 """
 import os
 import copy
+import math
 import openpyxl
 from openpyxl.utils import get_column_letter
 
@@ -25,6 +26,38 @@ NCOLS = 14
 DATA_ROW_TEMPLATE = 7   # 模板里数据行样例的行号
 GROUP_ROW_TEMPLATE = 6  # 模板里分组行样例的行号
 FORMNO_ROW = 5          # 表格编号行
+
+# 试验标准/方法列(D=4)：嵌图相关尺寸估算
+COND_COL0 = 3            # D 列 0-based
+COND_IMG_MAX_W = 330     # 单张配图最大宽(px)，略小于 D 列宽
+COND_CHARS_PER_LINE = 44 # D 列一行约放的「字宽」(中文=2, ASCII=1)
+COND_LINE_PX = 20        # 14pt 文本单行高(px)
+COND_IMG_GAP_PX = 6      # 图与图/文字之间的间隙(px)
+
+
+def _group_tests(tests):
+    """按样机号(sample_no)分组，保持首次出现顺序。返回 [(sample_no, [test,...]), ...]。"""
+    groups = []
+    index = {}
+    for t in tests:
+        key = (t.get("sample_no", "") or "").strip()
+        if key not in index:
+            index[key] = len(groups)
+            groups.append((key, []))
+        groups[index[key]][1].append(t)
+    return groups
+
+
+def _text_px_height(text):
+    """估算一段文字在 D 列渲染后的像素高度（按可视行数）。"""
+    if not text:
+        return 0
+    lines = str(text).replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    total = 0
+    for line in lines:
+        width = sum(2 if ord(ch) >= 0x2E80 else 1 for ch in line)
+        total += max(1, math.ceil(width / COND_CHARS_PER_LINE))
+    return total * COND_LINE_PX
 
 
 def _fmt_date(s):
@@ -95,58 +128,91 @@ def _set_header(ws, info, applicant):
     put("M2", "客户批准：", applicant)
 
 
-def _write_data_rows(ws, tests):
-    """把 tests 写进数据区。分组行样例(行6)+数据行样例(行7)作为样式来源。
-    按每个测试项的样机号(sample_no)分组：同组共用一个「第N组（样机号）」标题。"""
-    # 记录样式来源
+def _embed_cond_images(ws, row, text, imgs):
+    """把试验条件配图竖排嵌进 D 列（row，1-based），文字在上、图在下。
+    返回该行需要的最小行高(pt)；无图返回 0。"""
+    if not imgs:
+        return 0
+    try:
+        from openpyxl.drawing.image import Image as XLImage
+        from openpyxl.drawing.spreadsheet_drawing import OneCellAnchor, AnchorMarker
+        from openpyxl.drawing.xdr import XDRPositiveSize2D
+        from openpyxl.utils.units import pixels_to_EMU
+        from PIL import Image as PImage
+    except Exception:
+        return 0
+    # 文字占高（图从文字下方开始排）
+    y = _text_px_height(text) + COND_IMG_GAP_PX
+    for im in imgs:
+        fp = im.get("path", "")
+        if not fp or not os.path.exists(fp):
+            continue
+        try:
+            with PImage.open(fp) as pim:
+                w0, h0 = pim.size
+            if w0 <= 0 or h0 <= 0:
+                continue
+            scale = min(1.0, COND_IMG_MAX_W / float(w0))
+            w = int(w0 * scale); h = int(h0 * scale)
+            xi = XLImage(fp)
+            xi.width = w; xi.height = h
+            frm = AnchorMarker(col=COND_COL0, colOff=pixels_to_EMU(4),
+                               row=row - 1, rowOff=pixels_to_EMU(y))
+            size = XDRPositiveSize2D(pixels_to_EMU(w), pixels_to_EMU(h))
+            xi.anchor = OneCellAnchor(_from=frm, ext=size)
+            ws.add_image(xi)
+            y += h + COND_IMG_GAP_PX
+        except Exception:
+            continue
+    # px -> pt (行高单位)：1px ≈ 0.75pt
+    return y * 0.75
+
+
+def _write_data_rows(ws, groups):
+    """把分组后的 tests 写进数据区。groups = [(sample_no, [test,...]), ...]。
+    分组行样例(行6)+数据行样例(行7)作为样式来源。"""
     grp_styles = [ws.cell(GROUP_ROW_TEMPLATE, c) for c in range(1, NCOLS + 1)]
     dat_styles = [ws.cell(DATA_ROW_TEMPLATE, c) for c in range(1, NCOLS + 1)]
     grp_h = ws.row_dimensions[GROUP_ROW_TEMPLATE].height
-    dat_h = ws.row_dimensions[DATA_ROW_TEMPLATE].height
 
-    # 清掉模板里的分组行(6)与数据行样例(7)内容和它们的合并
+    # 清掉模板样例行里自带的配图（否则会与新图叠加）
+    try:
+        ws._images = []
+    except Exception:
+        pass
+    # 清掉模板里第6行起的合并
     for mc in list(ws.merged_cells.ranges):
         if mc.min_row >= GROUP_ROW_TEMPLATE:
             ws.unmerge_cells(str(mc))
-    # 删除第6、7行（样例），后面从第6行起重建
-    ws.delete_rows(GROUP_ROW_TEMPLATE, 2)
+    ws.delete_rows(GROUP_ROW_TEMPLATE, 2)  # 删样例行(6,7)，从第6行重建
 
-    # 按样机号分组，保持首次出现顺序
-    groups = []           # [(sample_no, [test,...])]
-    index = {}
-    for t in tests:
-        key = (t.get("sample_no", "") or "").strip()
-        if key not in index:
-            index[key] = len(groups)
-            groups.append((key, []))
-        groups[index[key]][1].append(t)
-
-    # 清掉模板中数据样例以下遗留的空行内容（模板原本排到第15行左右）
-    last = ws.max_row
-    for rr in range(GROUP_ROW_TEMPLATE, last + 1):
+    # 清掉数据样例以下遗留的空行内容
+    for rr in range(GROUP_ROW_TEMPLATE, ws.max_row + 1):
         for cc in range(1, NCOLS + 1):
             ws.cell(rr, cc).value = None
 
-    r = GROUP_ROW_TEMPLATE  # 从第6行开始重建
+    r = GROUP_ROW_TEMPLATE
     seq = 1
     for gi, (sample_no, gtests) in enumerate(groups, 1):
-        # 分组标题行：整行合并，「第N组（样机号）」
         for c in range(1, NCOLS + 1):
-            cell = ws.cell(r, c)
-            _copy_style(grp_styles[c - 1], cell)
+            _copy_style(grp_styles[c - 1], ws.cell(r, c))
         ws.cell(r, 1).value = f"第{gi}组（{sample_no}）"
         ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=NCOLS)
         if grp_h:
             ws.row_dimensions[r].height = grp_h
         r += 1
-        # 该组各测试项数据行
         for t in gtests:
             vals = _row_values(t, seq)
             for c in range(1, NCOLS + 1):
                 cell = ws.cell(r, c)
                 _copy_style(dat_styles[c - 1], cell)
                 cell.value = vals[c - 1]
-            # 数据行高留空 -> 打开时按内容自动调整（试验标准/方法可能很长）
+            # 试验条件配图嵌入 D 列，并据此撑高行
+            cond_text = t.get("condition", "")
+            cimgs = t.get("condition_images", []) or []
+            need_h = _embed_cond_images(ws, r, cond_text, cimgs)
+            if need_h > 0:
+                ws.row_dimensions[r].height = max(need_h, 30)
             r += 1
             seq += 1
 
@@ -176,6 +242,59 @@ def _row_values(t, seq):
     ]
 
 
+# 分组表布局：组横排在 A/C/E/G/I/K 列（0 间隔 B/D/F/H/J），最多 6 组
+GRP_SHEET_COLS = [1, 3, 5, 7, 9, 11]   # 1-based：A C E G I K
+GRP_SHEET_HDR_ROW = 5                   # 组标题行
+GRP_SHEET_ITEM_ROW = 6                  # 第一条测试项行
+
+
+def _fill_group_sheet(ws, groups):
+    """填「分组表」sheet：每组一列，标题「第N组（样机号）」下竖排该组各试验项目名。"""
+    # 样式来源：标题格(A5)、项目格(A6)
+    hdr_style = ws.cell(GRP_SHEET_HDR_ROW, 1)
+    item_style = ws.cell(GRP_SHEET_ITEM_ROW, 1)
+    hdr_h = ws.row_dimensions[GRP_SHEET_HDR_ROW].height or 21.95
+    item_h = ws.row_dimensions[GRP_SHEET_ITEM_ROW].height or 30.0
+
+    # 先清空模板里 6 组样例的标题与项目格内容（保留样式来源前先取好）
+    from copy import copy as _c
+    hstyle = {"font": _c(hdr_style.font), "border": _c(hdr_style.border),
+              "fill": _c(hdr_style.fill), "alignment": _c(hdr_style.alignment)}
+    istyle = {"font": _c(item_style.font), "border": _c(item_style.border),
+              "fill": _c(item_style.fill), "alignment": _c(item_style.alignment)}
+
+    max_items = max((len(g[1]) for g in groups), default=0)
+    used_cols = min(len(groups), len(GRP_SHEET_COLS))
+
+    # 清掉模板原有 6 组标题及其下方项目样例（标题行 + 足够多的项目行）
+    clear_rows = GRP_SHEET_HDR_ROW + 1 + max(max_items, 2)
+    for r in range(GRP_SHEET_HDR_ROW, clear_rows + 1):
+        for col in GRP_SHEET_COLS:
+            c = ws.cell(r, col)
+            c.value = None
+
+    def apply(cell, st):
+        cell.font = _c(st["font"]); cell.border = _c(st["border"])
+        cell.fill = _c(st["fill"]); cell.alignment = _c(st["alignment"])
+
+    for gi, (sample_no, gtests) in enumerate(groups):
+        if gi >= len(GRP_SHEET_COLS):
+            break  # 模板仅 6 组位
+        col = GRP_SHEET_COLS[gi]
+        # 标题
+        hc = ws.cell(GRP_SHEET_HDR_ROW, col)
+        apply(hc, hstyle)
+        hc.value = f"第{gi+1}组（{sample_no}）"
+        # 竖排项目
+        for k, t in enumerate(gtests):
+            ic = ws.cell(GRP_SHEET_ITEM_ROW + k, col)
+            apply(ic, istyle)
+            ic.value = t.get("title", "")
+            if ws.row_dimensions[GRP_SHEET_ITEM_ROW + k].height is None:
+                ws.row_dimensions[GRP_SHEET_ITEM_ROW + k].height = item_h
+    ws.row_dimensions[GRP_SHEET_HDR_ROW].height = hdr_h
+
+
 def generate_plan(project, out_path):
     """project: {info:{...}, tests:[...]} -> 生成试验计划 .xlsx，返回文件路径。"""
     info = project.get("info", {}) or {}
@@ -185,9 +304,14 @@ def generate_plan(project, out_path):
     wb = openpyxl.load_workbook(TEMPLATE)
     ws = wb["试验计划"] if "试验计划" in wb.sheetnames else wb.active
 
+    groups = _group_tests(tests)
     _set_header(ws, info, applicant)
     if tests:
-        _write_data_rows(ws, tests)
+        _write_data_rows(ws, groups)
+
+    # 第二个 sheet「分组表」
+    if "分组表" in wb.sheetnames and groups:
+        _fill_group_sheet(wb["分组表"], groups)
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     wb.save(out_path)

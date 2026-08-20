@@ -1148,7 +1148,18 @@ def api_generate_plan():
     try:
         data = request.get_json(force=True)
         name = data.get("name") or "报告"
-        proj = {"info": data.get("info", {}), "tests": data.get("tests", [])}
+        imgdir = os.path.join(pdir(name), "images")
+        # 试验条件配图：把每张图的 file 解析成绝对 path，计划引擎才拿得到图片
+        proj = {"info": data.get("info", {}), "tests": []}
+        for t in data.get("tests", []):
+            tt = dict(t)
+            cimgs = []
+            for im in t.get("condition_images", []):
+                fp = os.path.join(imgdir, im.get("file", ""))
+                if os.path.exists(fp):
+                    cimgs.append({"path": fp, "caption": im.get("caption", "")})
+            tt["condition_images"] = cimgs
+            proj["tests"].append(tt)
         out = os.path.join(OUT_DIR, safe_name(name) + "_试验计划.xlsx")
         try:
             result = PL.generate_plan(proj, out)
