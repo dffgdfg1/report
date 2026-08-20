@@ -124,7 +124,24 @@ def parse_form(text):
         att = _EXT_TAIL.sub("", att)
         out["test_items"] = "参考" + att
         out["test_basis"] = "参考" + att
+    # 申请人：OA 打印时把「五、签核信息」里的手写签名甩到了页首，
+    # 顺序为 申请人→申请方审核→…，故「试验申请单」标题前的第一行非空文字即申请人。
+    ap = _applicant_before_title(lines)
+    if ap:
+        out["applicant"] = ap
     return out
+
+
+def _applicant_before_title(lines):
+    """取「试验申请单」标题前第一行非空文字作为申请人（取首个空白分隔的词）。"""
+    for i, ln in enumerate(lines):
+        if ln.strip().startswith("试验申请单"):
+            for j in range(i):
+                cand = _clean(lines[j])
+                if cand:
+                    return cand.split()[0]
+            break
+    return ""
 
 def parse_pdf(path_or_bytes):
     """从 PDF 路径或字节流解析首页。返回 dict。"""

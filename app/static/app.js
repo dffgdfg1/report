@@ -135,6 +135,7 @@ const INFO_FIELDS = [
   ["sample_way", "来样方式", "text"],
   ["recv_date", "收样日期", "date"],
   ["commission_no", "委托单号", "text"],
+  ["applicant", "申请人（试验计划-客户批准）", "text"],
   ["test_date_range", "检测日期", "daterange"],
   ["lab_name", "检测单位", "text"],
   ["test_items", "检测项目", "text"],
@@ -1266,6 +1267,33 @@ async function generateRaw() {
   }
   finally { $("#btnGenRaw").disabled = false; }
 }
+async function generatePlan() {
+  if (!state.name) { alert("请先填写项目名称"); return; }
+  if (!state.tests.length) { alert("请至少添加一个测试项目"); return; }
+  if (!(await serverAlive())) {
+    alert("连接不上后台服务。\n\n请检查那个黑色命令行窗口是否还开着：\n如果已关闭，请重新双击「启动.bat」，然后刷新本页面再试。");
+    status("服务器未运行"); return;
+  }
+  await doSave();
+  const rb = $("#resultBar"); if (rb) rb.style.display = "none";
+  status("正在生成试验计划…");
+  $("#btnGenPlan").disabled = true;
+  try {
+    const r = await fetch("/api/generate_plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state) });
+    const j = await readJSON(r);
+    if (!j.ok) { alert("生成失败：" + (j.error || "")); status("生成失败"); return; }
+    status("试验计划生成完成 ✓");
+    showResultActions(j.file, j.size, "试验计划");
+  } catch (e) {
+    if (String(e).includes("Failed to fetch")) {
+      alert("生成过程中与后台断开了连接。\n\n多半是那个黑色命令行窗口被关闭了。\n请重新双击「启动.bat」，刷新页面后再生成。\n（你的进度已保存，不会丢失。）");
+      status("连接中断");
+    } else {
+      alert("生成出错：" + e); status("");
+    }
+  }
+  finally { $("#btnGenPlan").disabled = false; }
+}
 // ============ 初始化 ============
 function addTest() {
   const t = { title: "", sample_no: "", standard: "", start_date: "", end_date: "", overall_result: "合格",
@@ -1700,7 +1728,7 @@ const FORM_FIELD_LABELS = {
   sample_qty: "样品数量",
   verify_phase: "验证阶段", client_name: "委托方名称", client_addr: "委托方地址",
   maker_name: "制造商名称", maker_addr: "制造商地址", commission_no: "委托单号（申请编号）",
-  test_items: "检测项目", test_basis: "检测依据",
+  test_items: "检测项目", test_basis: "检测依据", applicant: "申请人（客户批准）",
 };
 function bindImportForm() {
   const btn = $("#btnImportForm"), fi = $("#formFile");
@@ -1749,6 +1777,7 @@ async function init() {
   $("#btnSave").onclick = doSave;
   $("#btnGen").onclick = generate;
   $("#btnGenRaw").onclick = generateRaw;
+  $("#btnGenPlan").onclick = generatePlan;
   $("#btnNew").onclick = newProject;
   $("#btnOpen").onclick = openDialog;
   $("#btnAddTest").onclick = addTest;

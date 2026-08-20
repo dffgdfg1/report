@@ -19,6 +19,7 @@ def _native_open(path):
 import presets as P
 import report_engine as E
 import raw_record_engine as RR
+import plan_engine as PL
 import feishu_auth
 import locks
 
@@ -1131,6 +1132,31 @@ def api_generate_raw():
         except PermissionError:
             return jsonify({"ok": False,
                 "error": "无法写入原始记录文件，可能它正在 WPS/Word 中打开。请先关闭已打开的「%s_原始记录.docx」再重试。" % safe_name(name)}), 200
+    except Exception as ex:
+        import traceback
+        tb = traceback.format_exc()
+        try:
+            with open(os.path.join(BASE, "构建", "错误日志.txt"), "w", encoding="utf-8") as f:
+                f.write(tb)
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": str(ex)}), 200
+
+@app.route("/api/generate_plan", methods=["POST"])
+def api_generate_plan():
+    """生成试验计划（.xlsx）：按测试项填一张试验计划表，复用首页样品信息与申请人。"""
+    try:
+        data = request.get_json(force=True)
+        name = data.get("name") or "报告"
+        proj = {"info": data.get("info", {}), "tests": data.get("tests", [])}
+        out = os.path.join(OUT_DIR, safe_name(name) + "_试验计划.xlsx")
+        try:
+            result = PL.generate_plan(proj, out)
+            return jsonify({"ok": True, "file": os.path.basename(result),
+                            "size": os.path.getsize(result)})
+        except PermissionError:
+            return jsonify({"ok": False,
+                "error": "无法写入试验计划文件，可能它正在 WPS/Excel 中打开。请先关闭已打开的「%s_试验计划.xlsx」再重试。" % safe_name(name)}), 200
     except Exception as ex:
         import traceback
         tb = traceback.format_exc()
