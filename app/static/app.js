@@ -188,6 +188,55 @@ function fieldInput(obj, key, label, type) {
   return f;
 }
 
+// 解析样机编号：支持 "7#-9#"、"7-9"、"1#~3#"、单个 "8#"/"8"。
+// 返回编号数组如 ["7#","8#","9#"]；无法识别返回 null。
+function parseSampleNos(str) {
+  const s = (str || "").trim();
+  if (!s) return [];
+  const range = s.match(/^(\d+)#?\s*[-~到至]\s*(\d+)#?$/);
+  if (range) {
+    let a = parseInt(range[1], 10), b = parseInt(range[2], 10);
+    if (a > b) { const tmp = a; a = b; b = tmp; }
+    const out = [];
+    for (let i = a; i <= b; i++) out.push(i + "#");
+    return out;
+  }
+  const single = s.match(/^(\d+)#?$/);
+  if (single) return [parseInt(single[1], 10) + "#"];
+  return null;  // 格式不认识（如含字母），不自动改样品
+}
+
+// 按样机编号同步"试验结论"样品行：编号按范围填好，结果保留原有(按行)或继承首行
+function syncSamplesFromSampleNo(t) {
+  const nos = parseSampleNos(t.sample_no);
+  if (nos === null || nos.length === 0) return false;  // 无法解析则不动样品
+  if (!t.samples) t.samples = [];
+  const base = t.samples.length > 0 ? t.samples[0].result : DEFAULT_SAMPLE_RESULT;
+  t.samples = nos.map((no, i) => {
+    const ex = t.samples[i];
+    return {
+      no,
+      result: ex ? ex.result : base,
+      conclusion: ex ? ex.conclusion : "合格",
+    };
+  });
+  return true;
+}
+
+// 样机编号字段：输入时只存值(不重渲染,保持焦点)，失焦时按范围同步样品编号
+function sampleNoField(t, idx) {
+  const f = el("div", "field");
+  f.innerHTML = `<label>样机编号（如 1#-2#）</label>`;
+  const inp = el("input");
+  inp.value = t.sample_no || "";
+  inp.oninput = () => { t.sample_no = inp.value; scheduleSave(); };
+  inp.onblur = () => {
+    if (syncSamplesFromSampleNo(t)) { renderTest_replace(idx); scheduleSave(); }
+  };
+  f.appendChild(inp);
+  return f;
+}
+
 // ===== 日期工具：存储用 2026.07.28；<input type=date> 用 2026-07-28 =====
 function toISO(s) {  // 任意 年?月?日 -> YYYY-MM-DD（供 date 控件）
   const m = (s || "").match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
@@ -311,7 +360,7 @@ function renderTest(t, idx) {
   // 测试类型：可搜索下拉（内置预设 + 已保存方案）
   g1.appendChild(renderTypePicker(t, idx));
   g1.appendChild(fieldInput(t, "title", "测试项目名称", "text"));
-  g1.appendChild(fieldInput(t, "sample_no", "样机编号（如 1#-2#）", "text"));
+  g1.appendChild(sampleNoField(t, idx));
   g1.appendChild(standardField(t));
   g1.appendChild(startDateField(t, idx));  // 开始时间：同步测试日期
   g1.appendChild(endDateField(t, idx));     // 完成时间：不得早于开始时间
@@ -637,6 +686,8 @@ const DEFAULT_SAMPLE_RESULT =
 // —— 试验结论（按样品） ——
 function renderSamples(t) {
   if (!t.samples) t.samples = [];
+  // 样品为空但已填样机编号时，按编号范围自动生成样品行
+  if (t.samples.length === 0) syncSamplesFromSampleNo(t);
   const wrap = el("div");
   wrap.appendChild(el("div", "subhead", "试验结论（按样品）"));
   const tbl = el("table", "rows");
