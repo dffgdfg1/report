@@ -629,9 +629,9 @@ function renderEquip(t) {
 
 // 试验结果默认文案（新样品行自动填充，可手改）
 const DEFAULT_SAMPLE_RESULT =
-  "试验前，样品外观正常，CAN报文正常滚动，对应摄像头正常出图；\n" +
-  "试验中，样品外观正常，CAN报文正常滚动，对应摄像头正常出图；\n" +
-  "试验后，样品外观正常，CAN报文正常滚动，对应摄像头正常出图；\n" +
+  "试验前，CAN报文正常滚动，对应摄像头正常出图；\n" +
+  "试验中，CAN报文正常滚动，对应摄像头正常出图；\n" +
+  "试验后，CAN报文正常滚动，对应摄像头正常出图；\n" +
   "符合试验要求。";
 
 // —— 试验结论（按样品） ——
@@ -660,7 +660,22 @@ function renderSamples(t) {
   });
   wrap.appendChild(tbl);
   const add = el("button", "btn-mini", "＋ 加一个样品");
-  add.onclick = () => { t.samples.push({ no: "", result: DEFAULT_SAMPLE_RESULT, conclusion: "合格" }); rerenderTest(t); };
+  add.onclick = () => {
+    // 新样品继承第一个样品的试验结果（如果有的话），否则用默认值
+    const baseResult = t.samples.length > 0 ? t.samples[0].result : DEFAULT_SAMPLE_RESULT;
+    // 样品编号自动递增：如果第一个是 "8#"，新的就是 "9#"
+    let newNo = "";
+    if (t.samples.length > 0) {
+      const firstNo = (t.samples[0].no || "").trim();
+      const match = firstNo.match(/^(\d+)#?$/);  // 匹配 "8#" 或 "8"
+      if (match) {
+        const num = parseInt(match[1], 10);
+        newNo = (num + t.samples.length) + "#";
+      }
+    }
+    t.samples.push({ no: newNo, result: baseResult, conclusion: "合格" });
+    rerenderTest(t);
+  };
   const line = el("div", "rowline"); line.appendChild(add); wrap.appendChild(line);
   return wrap;
 }
