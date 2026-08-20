@@ -838,7 +838,11 @@ async function handleFiles(fileList, t, targetArr) {
 
 function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 // ============ 保存 / 载入 / 生成 ============
-function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(doSave, 900); }
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  status(""); // 清空"已保存✓"，避免误导用户以为当前编辑内容已保存
+  saveTimer = setTimeout(doSave, 900);
+}
 
 async function doSave() {
   if (!state.name) return;
