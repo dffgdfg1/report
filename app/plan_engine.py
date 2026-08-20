@@ -35,12 +35,28 @@ COND_LINE_PX = 20        # 14pt 文本单行高(px)
 COND_IMG_GAP_PX = 6      # 图与图/文字之间的间隙(px)
 
 
+def _sample_key(t):
+    """取一个测试项的样机号作为分组键：优先「样机编号」字段，
+    为空时回退到样品行(samples)首个编号，仍空则用空串。"""
+    key = (t.get("sample_no", "") or "").strip()
+    if key:
+        return key
+    samples = t.get("samples", []) or []
+    for s in samples:
+        no = (s.get("no", "") or "").strip()
+        if no:
+            # 多个样品行时用范围/顿号拼接，作为该测试的样机标识
+            nos = [x.get("no", "").strip() for x in samples if x.get("no", "").strip()]
+            return "、".join(nos) if len(nos) > 1 else no
+    return ""
+
+
 def _group_tests(tests):
-    """按样机号(sample_no)分组，保持首次出现顺序。返回 [(sample_no, [test,...]), ...]。"""
+    """按样机号分组，保持首次出现顺序。返回 [(sample_no, [test,...]), ...]。"""
     groups = []
     index = {}
     for t in tests:
-        key = (t.get("sample_no", "") or "").strip()
+        key = _sample_key(t)
         if key not in index:
             index[key] = len(groups)
             groups.append((key, []))
@@ -264,14 +280,15 @@ def _fill_group_sheet(ws, groups):
               "fill": _c(item_style.fill), "alignment": _c(item_style.alignment)}
 
     max_items = max((len(g[1]) for g in groups), default=0)
-    used_cols = min(len(groups), len(GRP_SHEET_COLS))
 
-    # 清掉模板原有 6 组标题及其下方项目样例（标题行 + 足够多的项目行）
-    clear_rows = GRP_SHEET_HDR_ROW + 1 + max(max_items, 2)
-    for r in range(GRP_SHEET_HDR_ROW, clear_rows + 1):
+    # 不同测试之间空一格：第 k 个项目占 ITEM_ROW + k*2 行（中间行留空）。
+    # 需要清理的最大行 = 标题行下方 (max_items*2) 行，留足余量。
+    span = max(max_items * 2, 4)
+    for r in range(GRP_SHEET_HDR_ROW, GRP_SHEET_HDR_ROW + 1 + span):
         for col in GRP_SHEET_COLS:
-            c = ws.cell(r, col)
-            c.value = None
+            cell = ws.cell(r, col)
+            cell.value = None
+            cell.border = openpyxl.styles.Border()  # 清掉样例边框，避免残留空框
 
     def apply(cell, st):
         cell.font = _c(st["font"]); cell.border = _c(st["border"])
@@ -285,13 +302,14 @@ def _fill_group_sheet(ws, groups):
         hc = ws.cell(GRP_SHEET_HDR_ROW, col)
         apply(hc, hstyle)
         hc.value = f"第{gi+1}组（{sample_no}）"
-        # 竖排项目
+        # 竖排项目：每项之间空一行（占偶数偏移行）
         for k, t in enumerate(gtests):
-            ic = ws.cell(GRP_SHEET_ITEM_ROW + k, col)
+            row = GRP_SHEET_ITEM_ROW + k * 2
+            ic = ws.cell(row, col)
             apply(ic, istyle)
             ic.value = t.get("title", "")
-            if ws.row_dimensions[GRP_SHEET_ITEM_ROW + k].height is None:
-                ws.row_dimensions[GRP_SHEET_ITEM_ROW + k].height = item_h
+            if ws.row_dimensions[row].height is None:
+                ws.row_dimensions[row].height = item_h
     ws.row_dimensions[GRP_SHEET_HDR_ROW].height = hdr_h
 
 
