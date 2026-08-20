@@ -279,30 +279,21 @@ def _fill_group_sheet(ws, groups):
     istyle = {"font": _c(item_style.font), "border": _c(item_style.border),
               "fill": _c(item_style.fill), "alignment": _c(item_style.alignment)}
 
-    max_items = max((len(g[1]) for g in groups), default=0)
-
-    # 不同测试之间空一格：第 k 个项目占 ITEM_ROW + k*2 行（中间行留空）。
-    # 需要清理的最大行 = 标题行下方 (max_items*2) 行，留足余量。
-    span = max(max_items * 2, 4)
-    for r in range(GRP_SHEET_HDR_ROW, GRP_SHEET_HDR_ROW + 1 + span):
-        for col in GRP_SHEET_COLS:
-            cell = ws.cell(r, col)
-            cell.value = None
-            cell.border = openpyxl.styles.Border()  # 清掉样例边框，避免残留空框
-
     def apply(cell, st):
         cell.font = _c(st["font"]); cell.border = _c(st["border"])
         cell.fill = _c(st["fill"]); cell.alignment = _c(st["alignment"])
 
+    # 只填有数据的组；模板里其余空组（第N组（）+空框）原样保留，不删除。
     for gi, (sample_no, gtests) in enumerate(groups):
         if gi >= len(GRP_SHEET_COLS):
             break  # 模板仅 6 组位
         col = GRP_SHEET_COLS[gi]
-        # 标题
+        # 覆盖该组标题（沿用绿底红字样式）
         hc = ws.cell(GRP_SHEET_HDR_ROW, col)
         apply(hc, hstyle)
         hc.value = f"第{gi+1}组（{sample_no}）"
-        # 竖排项目：每项之间空一行（占偶数偏移行）
+        # 竖排项目：每项之间空一行（占偶数偏移行）。
+        # 超出模板自带空框的行(第10行起)才补边框；不动其它组的列。
         for k, t in enumerate(gtests):
             row = GRP_SHEET_ITEM_ROW + k * 2
             ic = ws.cell(row, col)
@@ -310,7 +301,6 @@ def _fill_group_sheet(ws, groups):
             ic.value = t.get("title", "")
             if ws.row_dimensions[row].height is None:
                 ws.row_dimensions[row].height = item_h
-    ws.row_dimensions[GRP_SHEET_HDR_ROW].height = hdr_h
 
 
 def generate_plan(project, out_path):
