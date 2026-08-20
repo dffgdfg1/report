@@ -1459,11 +1459,7 @@ function bindStdMgr() {
     if (!Object.keys(STD).length) { alert("标准库是空的，没有可导出的内容。"); return; }
     window.location.href = "/api/standards/export";
   };
-  $("#stdClearBtn").onclick = async () => {
-    if (!confirm("确定清空整个标准库？此操作不可撤销。")) return;
-    const j = await readJSON(await fetch("/api/standards/clear", { method: "POST" }));
-    if (j.ok) { await reloadStandards(); renderStdTable(); renderTests(); status("标准库已清空"); }
-  };
+  // 清空按钮已移除(防误删)，不再绑定
   // 导入 Excel 复用隐藏的 #stdFile
   const fi = $("#stdFile");
   $("#stdImportBtn").onclick = () => fi.click();
@@ -1596,11 +1592,7 @@ function bindDevMgr() {
     if (!DEV.length) { alert("设备库是空的，没有可导出的内容。"); return; }
     window.location.href = "/api/devices/export";
   };
-  $("#devClearBtn").onclick = async () => {
-    if (!confirm("确定清空整个设备库？此操作不可撤销。")) return;
-    const j = await readJSON(await fetch("/api/devices/clear", { method: "POST" }));
-    if (j.ok) { await reloadDevices(); renderDevTable(); renderTests(); status("设备库已清空"); }
-  };
+  // 清空按钮已移除(防误删)，不再绑定
   const fi = $("#devFile");
   $("#devImportBtn").onclick = () => fi.click();
   fi.onchange = async () => {
