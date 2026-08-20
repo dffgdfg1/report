@@ -25,6 +25,13 @@ let saveTimer = null;
 // 记录最近一次点击/悬停的图片上传区，粘贴截图(Ctrl+V)时图片进这里
 let PASTE_TARGET = null;
 
+// ===== 撤销/重做（Ctrl+Z / Ctrl+Y）=====
+let undoStack = [];        // 历史状态快照(JSON字符串)
+let redoStack = [];        // 重做栈
+let lastCommitted = null;  // 最近一次已入历史的状态(JSON)，用于判断是否有新改动
+let historyTimer = null;   // 编辑停顿后提交历史的防抖计时器
+const UNDO_LIMIT = 60;     // 最多保留多少步
+
 // 与后端 safe_name 完全一致：/ 替换为全角斜杠 ／，其他非法字符 → _。
 // 用于构造 /api/image 的路径，避免项目名里的斜杠(如 ME/WTD、YJ/SYBG)导致取图 404。
 function safeName(s) {
@@ -908,6 +915,81 @@ function scheduleSave() {
   clearTimeout(saveTimer);
   status(""); // 清空"已保存✓"，避免误导用户以为当前编辑内容已保存
   saveTimer = setTimeout(doSave, 900);
+  scheduleHistory();  // 编辑停顿后把当前状态提交到撤销历史
+}
+
+// ===== 撤销/重做实现 =====
+// 重置历史：载入/新建项目时调用，把当前状态设为基线
+function resetHistory() {
+  undoStack = [];
+  redoStack = [];
+  lastCommitted = JSON.stringify(state);
+  clearTimeout(historyTimer);
+}
+
+// 编辑停顿 600ms 后提交一次历史；连续打字会合并成一步
+function scheduleHistory() {
+  clearTimeout(historyTimer);
+  historyTimer = setTimeout(commitHistory, 600);
+}
+
+// 把「上一个已提交状态」压入撤销栈（仅当有实际变化时）
+function commitHistory() {
+  clearTimeout(historyTimer);
+  const cur = JSON.stringify(state);
+  if (lastCommitted === null) { lastCommitted = cur; return; }
+  if (cur === lastCommitted) return;  // 无变化不记录
+  undoStack.push(lastCommitted);
+  if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+  redoStack = [];          // 新操作使重做失效
+  lastCommitted = cur;
+}
+
+// 用一个状态快照(JSON)整体替换当前 state 并重渲染
+function applyStateSnapshot(json) {
+  const snap = JSON.parse(json);
+  state = { name: snap.name || "", info: snap.info || {}, tests: snap.tests || [] };
+  $("#pname").value = state.name || "";
+  renderInfo(); renderTests();
+  // 静默保存到后端(不走 scheduleSave，避免污染历史)
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(doSave, 900);
+}
+
+function doUndo() {
+  commitHistory();  // 先把未提交的改动落进历史
+  if (!undoStack.length) { toast("没有可撤销的操作"); return; }
+  redoStack.push(JSON.stringify(state));
+  const prev = undoStack.pop();
+  lastCommitted = prev;
+  applyStateSnapshot(prev);
+  toast("已撤销");
+}
+
+function doRedo() {
+  if (!redoStack.length) { toast("没有可重做的操作"); return; }
+  undoStack.push(JSON.stringify(state));
+  const next = redoStack.pop();
+  lastCommitted = next;
+  applyStateSnapshot(next);
+  toast("已重做");
+}
+
+// 绑定 Ctrl+Z 撤销 / Ctrl+Y(或 Ctrl+Shift+Z) 重做
+function bindUndoRedo() {
+  document.addEventListener("keydown", (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const k = e.key.toLowerCase();
+    if (k !== "z" && k !== "y") return;
+    // 焦点在输入框/文本域内：交给浏览器原生撤销(oninput 会同步 state)，不拦截
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
+    // 弹窗(标准库/设备库)打开时也不接管，避免干扰
+    if ($("#stdMgr").style.display === "flex" || $("#devMgr").style.display === "flex") return;
+    e.preventDefault();
+    if (k === "y" || (k === "z" && e.shiftKey)) doRedo();
+    else doUndo();
+  });
 }
 
 async function doSave() {
@@ -930,6 +1012,7 @@ async function loadProject(name) {
   state = { name: j.name || name, info: applyDefaults(j.info || {}), tests: j.tests || [] };
   $("#pname").value = state.name;
   renderInfo(); renderTests();
+  resetHistory();  // 载入的项目作为撤销基线
   status("已载入");
 }
 
@@ -950,6 +1033,7 @@ function newProject() {
   $("#pname").value = "";
   renderInfo(); renderTests();
   fillNextReportNo();  // 自动填今天的下一个报告编号
+  resetHistory();  // 新项目作为撤销基线
   status("新项目");
 }
 
@@ -1670,6 +1754,8 @@ async function init() {
   $("#btnAddTest").onclick = addTest;
   bindToggles();
   bindPasteImages();
+  bindUndoRedo();
+  resetHistory();  // 首屏状态作为撤销基线
   status("就绪");
 }
 
