@@ -1725,7 +1725,7 @@ function bindDevMgr() {
 // ============ 导入试验申请单 PDF，自动回填首页信息 ============
 const FORM_FIELD_LABELS = {
   sample_name: "样品名称", sample_no: "样品零件号", sample_model: "样品型号",
-  sample_qty: "样品数量",
+  sample_qty: "样品数量", rated_volt: "额定电压",
   verify_phase: "验证阶段", client_name: "委托方名称", client_addr: "委托方地址",
   maker_name: "制造商名称", maker_addr: "制造商地址", commission_no: "委托单号（申请编号）",
   test_items: "检测项目", test_basis: "检测依据", applicant: "申请人（客户批准）",

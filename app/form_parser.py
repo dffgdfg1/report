@@ -43,13 +43,21 @@ def _selected_radio(line):
             tail = _clean(rest)
     return sel, tail
 
+# 分节/换字段的边界：遇到这些行说明已越过当前字段，扫描应停止
+_SECTION_RE = re.compile(r"^[一二三四五六七八九十]、|^(委托方|制造商|样品|试验|附件|额定|报告|补充|检测)")
+
 def _checked_value(lines, label, maxscan=4):
-    """label 那行之后、下一节之前，返回带勾选标记☑那行的文字；没有则返回紧邻下一行。"""
+    """label 那行之后、下一节之前，返回带勾选标记☑那行的文字。
+    OA 里预填的标准值有时并不带勾选标记，故若在本字段范围内没扫到勾选，
+    就退回该字段范围内第一行非空文本（即预填值），绝不越界到下一节/下一字段。"""
     for i, ln in enumerate(lines):
         if ln.strip().startswith(label):
             first = ""
             for ln2 in lines[i + 1:i + 1 + maxscan]:
                 s = ln2.strip()
+                # 越过边界（下一节标题/下一字段标签）立即停，不采其值
+                if _SECTION_RE.match(s):
+                    break
                 if not first and _clean(s):
                     first = _clean(s)
                 if CHECK_ON in ln2:
@@ -58,7 +66,7 @@ def _checked_value(lines, label, maxscan=4):
     return ""
 
 # 末尾体积标注，如 (249KB) / (1.2 MB)，提取附件名时去掉
-_SIZE_TAIL = re.compile(r"\s*\([\d.]+\s*[KMGkmg]?B\)\s*$")
+_SIZE_TAIL = re.compile(r"\s*\([\d.]+\s*[KMGTkmgt]i?B?\)\s*$", re.I)
 # 文件后缀，如 .xlsx / .xls / .pdf / .docx，拼检测项目/依据时去掉
 _EXT_TAIL = re.compile(r"\.(?:xlsx?|docx?|pdf|pptx?|csv|txt)\s*$", re.I)
 def _attachment_name(lines):
@@ -104,6 +112,10 @@ def parse_form(text):
         sel, _ = _selected_radio(vline)   # 只取选中的选项，后面的说明文字不要
         if sel:
             out["verify_phase"] = sel
+    # 额定电压（单选：DC 12V / DC 24V / 其它<填写值>）
+    volt = _rated_volt(find("额定电压"))
+    if volt:
+        out["rated_volt"] = volt
     # 委托方名称 / 地址（勾选）
     cn = _strip_opt(_checked_value(lines, "委托方名称")); ca = _strip_opt(_checked_value(lines, "委托方地址"))
     if cn: out["client_name"] = cn
@@ -130,6 +142,26 @@ def parse_form(text):
     if ap:
         out["applicant"] = ap
     return out
+
+
+def _rated_volt(line):
+    """从「额定电压」行取选中值。选项形如 DC 12V DC 24V 其它。
+    - 命中标准项(如 24V)：返回该值(去掉 DC 前缀，统一成 12V/24V 形式)。
+    - 命中「其它」：返回其后填写的自定义电压值。
+    无选中项时返回空串。"""
+    if not line:
+        return ""
+    sel, tail = _selected_radio(line)
+    if not sel:
+        return ""
+    # 选了「其它」，取其后填写的值(可能带单位)
+    if sel.startswith("其") or _OPT_PREFIX.match(sel):
+        v = _strip_opt(sel) or tail
+        return _clean(v).strip()
+    # 标准项：sel 形如 12V/24V；tail 可能是紧跟的说明，忽略
+    v = _clean(sel).strip()
+    v = re.sub(r"^DC\s*", "", v, flags=re.I)  # 去掉可能残留的 DC 前缀
+    return v
 
 
 def _applicant_before_title(lines):
