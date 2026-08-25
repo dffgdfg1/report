@@ -44,7 +44,7 @@ def _fill_table(tbl_el, info, test, doc):
         tblpPr = tblPr.find(qn('w:tblpPr'))
         if tblpPr is not None:
             tblPr.remove(tblpPr)
-    
+
     rows = tbl_el.findall(W + 'tr')
 
     def cells(ri):
@@ -92,7 +92,8 @@ def _fill_table(tbl_el, info, test, doc):
         h10 = _page2_status_height(doc, rows)
         if h10 > 0:
             _row_min_height(rows[10], h10)
-    # R13 测试日期：保留模板原样(空白下划线)，由用户手动填写，不自动填入
+    # R13 测试日期：内容居中放（标签+值单元格都水平+垂直居中）；值仍留空白由用户手填
+    c = cells(13); _center_cell(c[0]); _center_cell(c[1])
 
 
 def _vcenter(tc):
@@ -107,6 +108,30 @@ def _vcenter(tc):
         vA = tcPr.makeelement(qn('w:vAlign'), {})
         tcPr.append(vA)
     vA.set(qn('w:val'), 'center')
+
+
+def _center_cell(tc):
+    """单元格内容水平+垂直居中（每个段落设 jc=center，单元格设 vAlign=center）。"""
+    from docx.oxml.ns import qn
+    tcPr = tc.find(qn('w:tcPr'))
+    if tcPr is None:
+        tcPr = tc.makeelement(qn('w:tcPr'), {})
+        tc.insert(0, tcPr)
+    vA = tcPr.find(qn('w:vAlign'))
+    if vA is None:
+        vA = tcPr.makeelement(qn('w:vAlign'), {})
+        tcPr.append(vA)
+    vA.set(qn('w:val'), 'center')
+    for p in tc.findall(qn('w:p')):
+        ppr = p.find(qn('w:pPr'))
+        if ppr is None:
+            ppr = p.makeelement(qn('w:pPr'), {})
+            p.insert(0, ppr)
+        jc = ppr.find(qn('w:jc'))
+        if jc is None:
+            jc = ppr.makeelement(qn('w:jc'), {})
+            ppr.append(jc)
+        jc.set(qn('w:val'), 'center')
 
 
 def _row_min_height(row_el, twips):
@@ -337,13 +362,13 @@ def generate_raw_records(project, out_path):
     tests = project.get("tests", []) or []
     if not tests:
         tests = [{}]  # 没有测试项也产出一张空表
-    
+
     # 解析 out_path: 目录 + 基础文件名
     out_dir = os.path.dirname(out_path)
     base_name = os.path.splitext(os.path.basename(out_path))[0]
-    
+
     generated_files = []
-    
+
     for idx, test in enumerate(tests):
         # 为每个测试项生成独立文档
         doc = Document(SKELETON)
@@ -351,22 +376,22 @@ def generate_raw_records(project, out_path):
         tbl = doc.tables[0]._tbl
         _fill_table(tbl, info, test, doc)
         _normalize_font_size(doc)  # 全文五号(sz21) 统一压回小五(sz18)
-        
+
         # 文件命名：基础名_测试项目名.docx 或 基础名_序号.docx
         test_title = test.get("title", "").strip()
         if test_title:
             # 清理文件名非法字符
-            safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_', '（', '）', '(', ')') else '_' 
+            safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_', '（', '）', '(', ')') else '_'
                                 for c in test_title)
             file_name = f"{base_name}_{safe_title}.docx"
         else:
             file_name = f"{base_name}_{idx+1}.docx"
-        
+
         file_path = os.path.join(out_dir, file_name)
         os.makedirs(out_dir, exist_ok=True)
         doc.save(file_path)
         generated_files.append(file_path)
-    
+
     # 返回文件路径列表（保持向后兼容，第一个文件路径也作为主返回值）
     # 始终返回列表，简化调用方逻辑
     return generated_files
