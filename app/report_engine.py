@@ -635,20 +635,21 @@ def fill_summary(doc, tests):
                     pass
     header_height = str(header_height_sum) if header_height_sum else None
 
+    # 汇总表数据行统一固定最小行高 1.65cm。Word 行高单位是 twip，1cm≈567twip。
+    DATA_ROW_MIN_TWIPS = str(int(round(1.65 * 567)))  # ≈936
     for i, t in enumerate(tests, 1):
         r = clone(data_tmpl)
-        # 模板数据行设了固定行高(trHeight≈936，约3行高)，会把单行内容撑高多出空行；
-        # 设置数据行高度与「序号」表头单元格(跨两行)一致
+        # 每个数据行最小行高固定为 1.65cm(atLeast)，内容多时可自然增高
         trpr = r.find(W + 'trPr')
-        if trpr is not None and header_height:
-            # 移除旧的高度设置
-            for th in trpr.findall(W + 'trHeight'):
-                trpr.remove(th)
-            # 设置新高度
-            new_th = trpr.makeelement(W + 'trHeight', {})
-            new_th.set(W + 'val', header_height)
-            new_th.set(W + 'hRule', 'atLeast')
-            trpr.append(new_th)
+        if trpr is None:
+            trpr = r.makeelement(W + 'trPr', {})
+            r.insert(0, trpr)
+        for th in trpr.findall(W + 'trHeight'):
+            trpr.remove(th)
+        new_th = trpr.makeelement(W + 'trHeight', {})
+        new_th.set(W + 'val', DATA_ROW_MIN_TWIPS)
+        new_th.set(W + 'hRule', 'atLeast')
+        trpr.append(new_th)
         c = row_cells(r)
         vals = [str(i), t.get("title", ""), t.get("standard", ""),
                 t.get("sample_no", ""), t.get("start_date", ""),
