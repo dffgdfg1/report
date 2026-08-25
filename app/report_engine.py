@@ -817,10 +817,16 @@ def replace_workmode_section(doc, maker):
         body.remove(el)
     # 把车厂库 docx 的正文段落原样(deepcopy)插到「报告结束」前
     src_doc = Document(fp)
+    first_p = None
     for e in src_doc.element.body.iterchildren():
         if e.tag == W + 'sectPr':
             continue  # 跳过库文件自己的分节属性，用骨架的
-        anchor_el.addprevious(clone(e))
+        ce = clone(e)
+        anchor_el.addprevious(ce)
+        if first_p is None and ce.tag == W + 'p':
+            first_p = ce
+    if first_p is not None:
+        add_page_break_before(first_p)
 
 
 # ---------- 主入口 ----------
