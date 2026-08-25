@@ -379,11 +379,11 @@ def build_section(doc, donor_doc, test):
     # 标题（blocks[0]）
     set_tc_text  # noqa
     title_p = blocks[0]
-    # 用第一处 run 改标题文本；大标题默认追加“测试”后缀（不影响试验结果汇总）
+    # 用第一处 run 改标题文本；大标题默认追加“试验”后缀（不影响试验结果汇总）
     _title = str(test.get("title", "") or "").strip()
-    if _title and not _title.endswith("测试"):
-        _title = _title + "测试"
-    set_para_text(title_p, _title or "测试")
+    if _title and not _title.endswith("试验"):
+        _title = _title + "试验"
+    set_para_text(title_p, _title or "试验")
     # 每个测试项目单独分页：标题段前加分页
     add_page_break_before(title_p)
     # 填表
