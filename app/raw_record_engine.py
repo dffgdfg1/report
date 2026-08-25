@@ -92,8 +92,11 @@ def _fill_table(tbl_el, info, test, doc):
         h10 = _page2_status_height(doc, rows)
         if h10 > 0:
             _row_min_height(rows[10], h10)
-    # R13 测试日期：内容居中放（标签+值单元格都水平+垂直居中）；值仍留空白由用户手填
-    c = cells(13); _center_cell(c[0]); _center_cell(c[1])
+    # R13 测试日期：内容居中放。模板原文用大量空格把「开始/结束/时间」撑满整格宽，
+    # 居中就看不出效果——这里改用较短的空白占位，文本比单元格窄，jc=center 才真正居中。
+    c = cells(13)
+    _set(c[1], "测试开始时间：            测试结束时间：            时间：      小时")
+    _center_cell(c[0]); _center_cell(c[1])
 
 
 def _vcenter(tc):
