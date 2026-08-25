@@ -352,7 +352,7 @@ def fill_desc_tbl(tbl, doc, d):
         _date_val = f"{_sd}-{_ed}"
     else:
         _date_val = _sd or _ed or str(d.get("test_date", "") or "").strip()
-    r0 = row_cells(rows[0]); set_tc_text(r0[1], d.get("env", ""), align="center"); set_tc_text(r0[3], _date_val)
+    r0 = row_cells(rows[0]); set_tc_text(r0[1], d.get("env", ""), align="center"); set_tc_text(r0[3], _date_val, align="center")
     r1 = row_cells(rows[1]); set_tc_text(r1[1], d.get("standard", ""))
     r2 = row_cells(rows[2]); clear_cell_images(r2[1]); set_tc_text(r2[1], d.get("condition", ""))
     r3 = row_cells(rows[3]); set_tc_text(r3[1], d.get("requirement", ""))
