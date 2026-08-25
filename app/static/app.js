@@ -21,6 +21,7 @@ let state = { name: "", info: {}, tests: [] };
 let SCHEMES = [];   // 已保存的测试方案名列表
 let STD = {};       // 标准库：{测试项目: {车厂: {standard, condition, requirement}}}
 let DEV = [];       // 设备库：[{name, model, mgmt_no, cal_date, cal_end, ...}]
+let CARMAKERS = []; // 工作模式/功能等级车厂库：ku/*.docx 文件名列表
 let saveTimer = null;
 // 记录最近一次点击/悬停的图片上传区，粘贴截图(Ctrl+V)时图片进这里
 let PASTE_TARGET = null;
@@ -57,6 +58,11 @@ async function reloadStandards() {
 
 async function reloadDevices() {
   try { DEV = await readJSON(await fetch("/api/devices")); } catch (e) { DEV = []; }
+}
+
+async function reloadCarmakers() {
+  try { CARMAKERS = (await readJSON(await fetch("/api/carmakers"))).carmakers || []; }
+  catch (e) { CARMAKERS = []; }
 }
 
 // 模糊匹配：子序列匹配，"振测"命中"振动测试"，"振动"也命中。忽略大小写。
@@ -140,6 +146,7 @@ const INFO_FIELDS = [
   ["lab_name", "检测单位", "text"],
   ["test_items", "检测项目", "text"],
   ["test_basis", "检测依据", "text"],
+  ["carmaker", "工作模式/功能等级（车厂）", "carmaker"],
   ["remark", "备注", "text"],
 ];
 
@@ -150,6 +157,7 @@ function renderInfo() {
   const grid = el("div", "grid");
   INFO_FIELDS.forEach(([key, label, type]) => {
     if (type === "date" || type === "daterange") { grid.appendChild(fieldInput(state.info, key, label, type)); return; }
+    if (type === "carmaker") { grid.appendChild(carmakerField(state.info, key, label)); return; }
     const f = el("div", "field");
     f.innerHTML = `<label>${label}</label>`;
     const inp = el("input");
@@ -164,6 +172,34 @@ function renderInfo() {
     grid.appendChild(f);
   });
   body.appendChild(grid);
+}
+
+// 车厂下拉：选中后整份报告的“工作模式定义…功能状态分级”那段用 ku/<车厂>.docx 整段替换。
+// 留空＝国标（默认），与旧项目行为一致。选项来自后端 /api/carmakers（ku/*.docx 文件名）。
+function carmakerField(obj, key, label) {
+  const f = el("div", "field");
+  f.innerHTML = `<label>${label}</label>`;
+  const sel = el("select");
+  const optDefault = el("option", null, "国标（默认）");
+  optDefault.value = "";
+  sel.appendChild(optDefault);
+  const cur = obj[key] || "";
+  let curInList = false;
+  (CARMAKERS || []).forEach(name => {
+    const op = el("option", null, name);
+    op.value = name;
+    if (name === cur) { op.selected = true; curInList = true; }
+    sel.appendChild(op);
+  });
+  // 已存的值不在当前库列表里（文件被删/改名）：保留它，仍可选中，避免静默丢失
+  if (cur && !curInList) {
+    const op = el("option", null, cur + "（库中已无此文件）");
+    op.value = cur; op.selected = true;
+    sel.appendChild(op);
+  }
+  sel.onchange = () => { obj[key] = sel.value; scheduleSave(); };
+  f.appendChild(sel);
+  return f;
 }
 
 // 项目名称 = 委托单号 + 样品型号 + “试验报告”（自动生成，只读）
@@ -1105,7 +1141,7 @@ function showMultiFileResults(files, noun) {
     alert(`${noun}已生成 ${files.length} 个文件。请前往输出目录查看。`);
     return;
   }
-  
+
   // Build file list HTML with checkboxes
   let html = `<div style="margin-bottom:10px;">
     <label style="cursor:pointer;">
@@ -1125,15 +1161,15 @@ function showMultiFileResults(files, noun) {
   });
   html += `</div>`;
   fileBox.innerHTML = html;
-  
+
   // Setup select all checkbox handler
   const selectAll = document.getElementById('selectAllFiles');
   const checkboxes = document.querySelectorAll('.file-checkbox');
-  
+
   selectAll.addEventListener('change', () => {
     checkboxes.forEach(cb => cb.checked = selectAll.checked);
   });
-  
+
   // Update select all when individual checkboxes change
   checkboxes.forEach(cb => {
     cb.addEventListener('change', () => {
@@ -1143,14 +1179,14 @@ function showMultiFileResults(files, noun) {
       selectAll.indeterminate = !allChecked && !noneChecked;
     });
   });
-  
+
   const titleReset = mask.querySelector(".modal-head b");
   if (titleReset) titleReset.textContent = `✓ ${noun}已生成 (${files.length}个文件)`;
-  
+
   actions.innerHTML = "";
   const close = () => { mask.style.display = "none"; };
   const mkBtn = (label, cls, fn) => { const b = el("button", cls); b.textContent = label; b.onclick = fn; return b; };
-  
+
   // Download selected button
   const downloadBtn = mkBtn(`下载选中`, "btn-primary", () => {
     const selected = [...document.querySelectorAll('.file-checkbox:checked')];
@@ -1169,10 +1205,10 @@ function showMultiFileResults(files, noun) {
     });
     toast(`正在下载 ${selected.length} 个文件`);
   });
-  
+
   actions.appendChild(downloadBtn);
   actions.appendChild(mkBtn("关闭", "btn-secondary", close));
-  
+
   mask.style.display = "flex";
 }
 
@@ -1763,6 +1799,7 @@ async function init() {
     reloadSchemes(),
     reloadStandards(),
     reloadDevices(),
+    reloadCarmakers(),
   ]);
   state.info = applyDefaults(state.info);
   renderInfo(); renderTests();

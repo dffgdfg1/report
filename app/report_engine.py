@@ -24,6 +24,9 @@ W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKELETON = os.path.join(BASE, "模板库", "骨架.docx")
 DONOR = os.path.join(BASE, "模板库", "主体_full.docx")
+# 车厂「工作模式定义/功能状态分级」库：ku/<车厂名>.docx。报告里这段按所选车厂整段替换。
+CARMAKER_DIR = os.path.join(BASE, "模板库", "ku")
+CARMAKER_DEFAULT = "国标"
 
 # ---------- 低层 XML 助手 ----------
 def clone(el):
@@ -777,6 +780,49 @@ def set_update_fields_on_open(doc):
         # 按 OOXML schema，updateFields 应排在 settings 靠前位置，插到最前最稳妥
         settings.insert(0, uf)
     uf.set(qn('w:val'), "true")
+def _carmaker_docx_path(maker):
+    """车厂名 -> ku/<车厂>.docx 路径。名字为空或文件不存在时回退到默认(国标)。"""
+    name = str(maker or "").strip() or CARMAKER_DEFAULT
+    fp = os.path.join(CARMAKER_DIR, name + ".docx")
+    if not os.path.exists(fp):
+        fp = os.path.join(CARMAKER_DIR, CARMAKER_DEFAULT + ".docx")
+    return fp if os.path.exists(fp) else ""
+
+
+def replace_workmode_section(doc, maker):
+    """把骨架里固定的「工作模式定义 ... 功能状态分级」整段，替换成所选车厂库
+    docx(ku/<车厂>.docx)的正文内容(原样搬入，保留库文件自己的字体/排版)。
+    区间：从含「工作模式定义」的段落起，到含「报告结束」的段落之前(不含报告结束)。
+    找不到区间或库文件时不动骨架原样。"""
+    fp = _carmaker_docx_path(maker)
+    if not fp:
+        return
+    body = doc.element.body
+    els = list(body.iterchildren())
+    start = end = None
+    for i, el in enumerate(els):
+        if el.tag != W + 'p':
+            continue
+        txt = para_text(el)
+        if start is None and '工作模式定义' in txt:
+            start = i
+        if start is not None and '报告结束' in txt:
+            end = i
+            break
+    if start is None or end is None:
+        return
+    anchor_el = els[end]  # 「报告结束」段：新内容插到它前面
+    # 删掉骨架里旧的定义段(start .. end-1)
+    for el in els[start:end]:
+        body.remove(el)
+    # 把车厂库 docx 的正文段落原样(deepcopy)插到「报告结束」前
+    src_doc = Document(fp)
+    for e in src_doc.element.body.iterchildren():
+        if e.tag == W + 'sectPr':
+            continue  # 跳过库文件自己的分节属性，用骨架的
+        anchor_el.addprevious(clone(e))
+
+
 # ---------- 主入口 ----------
 def generate(project, out_path):
     """project: {info:{...}, tests:[{...}, ...]}  ->  生成 out_path (.docx)"""
@@ -789,6 +835,8 @@ def generate(project, out_path):
     fill_cover(doc, info)
     fill_sample_info(doc, info)
     fill_summary(doc, tests)
+    # 按所选车厂替换「工作模式定义/功能状态分级」这段(默认国标)
+    replace_workmode_section(doc, info.get("carmaker", ""))
     build_dynamic_toc(doc)
 
     for t in tests:

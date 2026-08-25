@@ -1014,6 +1014,22 @@ def _refresh_report_no_date(report_no):
     return m.group(1) + today + m.group(3)
 
 
+@app.route("/api/carmakers")
+def api_carmakers():
+    """列出「工作模式定义/功能状态分级」车厂库：模板库/ku/*.docx 的文件名(去扩展名)。
+    用于测试项/首页选择不同车厂的定义描述。"""
+    kudir = os.path.join(BASE, "模板库", "ku")
+    names = []
+    try:
+        for fn in os.listdir(kudir):
+            if fn.lower().endswith(".docx") and not fn.startswith("~$"):
+                names.append(os.path.splitext(fn)[0])
+    except Exception:
+        pass
+    names.sort()
+    return jsonify({"carmakers": names})
+
+
 @app.route("/api/next_report_no")
 def api_next_report_no():
     """今天的报告编号：YJ/SYBG-<今天yyyymmdd>001。
