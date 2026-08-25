@@ -295,8 +295,8 @@ def rebuild_image_table(tbl_el, groups, doc):
                     img = imgs[i + j]
                     put_picture(cells[j], doc, img["path"], img.get("caption", ""))
                 else:
-                    # 空单元格：清掉图，留空
-                    pass
+                    # 空单元格用斜杠占位(水平/垂直居中)，避免留白显得缺图
+                    set_tc_text(cells[j], "/", align="center")
             tbl_el.append(r)
 # ---------- 测试段落（从供体克隆一整段并填充） ----------
 def _donor_section_blocks(donor_doc):
