@@ -26,6 +26,8 @@ NCOLS = 14
 DATA_ROW_TEMPLATE = 7   # 模板里数据行样例的行号
 GROUP_ROW_TEMPLATE = 6  # 模板里分组行样例的行号
 FORMNO_ROW = 5          # 表格编号行
+# 数据行最小行高：1.65cm。Excel 行高单位是「磅(pt)」，1cm≈28.35pt。
+DATA_ROW_MIN_H = 1.65 * 28.35  # ≈46.78pt
 
 # 试验标准/方法列(D=4)：嵌图相关尺寸估算
 COND_COL0 = 3            # D 列 0-based
@@ -248,8 +250,8 @@ def _write_data_rows(ws, groups):
             cond_text = t.get("condition", "")
             cimgs = t.get("condition_images", []) or []
             need_h = _embed_cond_images(ws, r, cond_text, cimgs)
-            if need_h > 0:
-                ws.row_dimensions[r].height = max(need_h, 30)
+            # 数据行最小行高 1.65cm；有配图时取更高者，保证图片能完整显示
+            ws.row_dimensions[r].height = max(need_h, DATA_ROW_MIN_H)
             r += 1
             seq += 1
 
