@@ -996,6 +996,24 @@ def api_devices_delete():
     _save_dev(kept)
     return jsonify({"ok": True, "removed": removed, "count": len(kept)})
 
+# 报告编号里的日期段：YJ/SYBG-<yyyymmdd><序号>。生成/下载报告时，
+# 把日期段刷新成当天(出报告当天)——前期只是做模板，真正出报告才是当天。
+_REPORT_NO_DATE_RE = re.compile(r"^(.*?)(\d{8})(\d{3})\s*$")
+
+def _refresh_report_no_date(report_no):
+    """把报告编号中的 8 位日期段替换成今天(yyyymmdd)，前缀与后三位序号保持不变。
+    不符合 <前缀><8位日期><3位序号> 格式的(如手动改过的)原样返回。"""
+    import datetime
+    s = str(report_no or "").strip()
+    if not s:
+        return s
+    m = _REPORT_NO_DATE_RE.match(s)
+    if not m:
+        return s
+    today = datetime.date.today().strftime("%Y%m%d")
+    return m.group(1) + today + m.group(3)
+
+
 @app.route("/api/next_report_no")
 def api_next_report_no():
     """今天的报告编号：YJ/SYBG-<今天yyyymmdd>001。
@@ -1058,8 +1076,11 @@ def api_generate():
         data = request.get_json(force=True)
         name = data.get("name") or "报告"
         imgdir = os.path.join(pdir(name), "images")
+        # 出报告当天才是报告日期：把报告编号里的日期段刷新成今天(前期做的只是模板)
+        _info = dict(data.get("info", {}) or {})
+        _info["report_no"] = _refresh_report_no_date(_info.get("report_no", ""))
         # 解析每张图 file -> 绝对路径
-        proj = {"info": data.get("info", {}), "tests": []}
+        proj = {"info": _info, "tests": []}
         for t in data.get("tests", []):
             tt = dict(t)
             groups = []
@@ -1085,8 +1106,8 @@ def api_generate():
         except PermissionError:
             return jsonify({"ok": False,
                 "error": "无法写入报告文件，可能它正在 WPS/Word 中打开。请先关闭已打开的「%s.docx」再重试。" % safe_name(name)}), 200
-        # 记录本次生成的报告编号，供报告编号自动递增
-        _append_genlog((data.get("info", {}) or {}).get("report_no", ""))
+        # 记录本次生成的报告编号(用刷新后的当天编号)，供报告编号自动递增
+        _append_genlog(_info.get("report_no", ""))
         return jsonify({"ok": True, "file": os.path.basename(out), "size": os.path.getsize(out)})
     except Exception as ex:
         import traceback

@@ -250,8 +250,12 @@ def _write_data_rows(ws, groups):
             cond_text = t.get("condition", "")
             cimgs = t.get("condition_images", []) or []
             need_h = _embed_cond_images(ws, r, cond_text, cimgs)
-            # 数据行最小行高 1.65cm；有配图时取更高者，保证图片能完整显示
-            ws.row_dimensions[r].height = max(need_h, DATA_ROW_MIN_H)
+            # 数据行行高自适应：无配图时清掉显式行高(=None)，让 Excel 按换行内容
+            # 自动撑高，文字才不会被截断；有配图时才用显式高度保证图片放得下。
+            if need_h > 0:
+                ws.row_dimensions[r].height = need_h
+            else:
+                ws.row_dimensions[r].height = None
             r += 1
             seq += 1
 
