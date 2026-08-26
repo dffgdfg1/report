@@ -1205,9 +1205,14 @@ def api_generate_plan():
                 "error": "无法写入试验计划文件，可能它正在 WPS/Excel 中打开。请先关闭已打开的「%s_试验计划.xlsx」再重试。" % safe_name(name)}), 200
         resp = {"ok": True, "file": os.path.basename(result),
                 "size": os.path.getsize(result)}
-        # 可选：同步导出「试验汇总」模版（内容用户自己手填，这里原封不动拷贝出来）
+        # 可选：同步导出「试验汇总」模版（内容用户自己手填，这里原封不动拷贝出来）。
+        # 按首页所选车厂取 模板库/ku/huizhongku/<车厂>.doc（与 ku/<车厂>.docx 同名），缺失时回退国标。
         if data.get("export_summary"):
-            src = os.path.join(BASE, "模板库", "试验汇总.doc")
+            hzdir = os.path.join(BASE, "模板库", "ku", "huizhongku")
+            maker = str((data.get("info", {}) or {}).get("carmaker", "") or "").strip() or "国标"
+            src = os.path.join(hzdir, maker + ".doc")
+            if not os.path.exists(src):
+                src = os.path.join(hzdir, "国标.doc")
             if os.path.exists(src):
                 sum_out = os.path.join(OUT_DIR, safe_name(name) + "_试验汇总.doc")
                 try:
@@ -1218,7 +1223,7 @@ def api_generate_plan():
                 except PermissionError:
                     resp["summary_error"] = "无法写入试验汇总文件，可能它正在 WPS/Word 中打开。请先关闭后重试。"
             else:
-                resp["summary_error"] = "未找到模板库/试验汇总.doc"
+                resp["summary_error"] = "未找到车厂对应的试验汇总模版（huizhongku/%s.doc），也无国标回退。" % maker
         return jsonify(resp)
     except Exception as ex:
         import traceback
