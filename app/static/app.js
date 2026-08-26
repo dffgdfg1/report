@@ -372,7 +372,7 @@ function standardField(t) {
   const row = el("div", "std-row");
   // 用 textarea：标准号/条款号常有多行，保留录入时的换行与空格，原样写进 Word
   const inp = el("textarea"); inp.value = t.standard || ""; inp.rows = 3; inp.className = "std-input";
-  inp.placeholder = "可多行录入，换行/空格会原样保留到报告里";
+  inp.placeholder = "可多行录入，换行/空格会原样保留到报告里。下标用 U_{B}，上标用 10^{-3}";
   inp.oninput = () => { t.standard = inp.value; scheduleSave(); };
   const btn = el("button", "btn-mini", "参考客户大纲");
   btn.title = "点击填入“参考客户大纲”";
@@ -780,6 +780,43 @@ function rerenderTest(t) {
   if (idx >= 0) renderTest_replace(idx);
 }
 // ============ 渲染：试验条件配图 ============
+// 让缩略图可拖动排序：拖起一张图，放到另一张上就把它插到那个位置。
+// arr 是该分组的图片数组；用 DOM 里 .thumb 的实时位置算 from/to，避免闭包捕获的下标
+// 因 splice 而失效。reorder 完成后重渲染该测试卡片，缩略图顺序即刷新。
+function enableThumbDrag(thumbEl, arr, reorder) {
+  thumbEl.setAttribute('draggable', 'true');
+  thumbEl.addEventListener('dragstart', (e) => {
+    // 在图注输入框里选字/拖字时不要触发整卡拖动
+    if (e.target && e.target.tagName === 'INPUT') { e.preventDefault(); return; }
+    thumbEl.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', ''); } catch (err) {}
+  });
+  thumbEl.addEventListener('dragend', () => thumbEl.classList.remove('dragging'));
+  thumbEl.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const parent = thumbEl.parentNode;
+    const dragging = parent && parent.querySelector('.thumb.dragging');
+    if (dragging && dragging !== thumbEl) thumbEl.classList.add('drag-over');
+  });
+  thumbEl.addEventListener('dragleave', () => thumbEl.classList.remove('drag-over'));
+  thumbEl.addEventListener('drop', (e) => {
+    e.preventDefault();
+    thumbEl.classList.remove('drag-over');
+    const parent = thumbEl.parentNode;
+    const dragging = parent && parent.querySelector('.thumb.dragging');
+    if (!dragging || dragging === thumbEl) return;
+    const kids = [...parent.querySelectorAll('.thumb')];
+    const from = kids.indexOf(dragging);
+    const to = kids.indexOf(thumbEl);
+    if (from < 0 || to < 0 || from === to) return;
+    const moved = arr.splice(from, 1)[0];
+    arr.splice(to, 0, moved);
+    reorder();
+  });
+}
+
 function renderConditionImages(t) {
   if (!t.condition_images) t.condition_images = [];
   const wrap = el("div");
@@ -808,6 +845,7 @@ function renderConditionImages(t) {
     const x = el("span", "x", "×"); x.title = "删除";
     x.onclick = () => { t.condition_images.splice(ii, 1); rerenderTest(t); };
     th2.appendChild(x);
+    enableThumbDrag(th2, t.condition_images, () => rerenderTest(t));
     thumbs.appendChild(th2);
   });
   wrap.appendChild(thumbs);
@@ -868,6 +906,7 @@ function renderImageGroup(t, g, gi) {
     const x = el("span", "x", "×"); x.title = "删除";
     x.onclick = () => { g.images.splice(ii, 1); rerenderTest(t); };
     th2.appendChild(x);
+    enableThumbDrag(th2, g.images, () => rerenderTest(t));
     thumbs.appendChild(th2);
   });
   box.appendChild(thumbs);

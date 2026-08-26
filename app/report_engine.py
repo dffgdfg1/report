@@ -66,6 +66,43 @@ def _set_run_bold(r):
     if rpr.find(W + 'b') is None:
         rpr.append(rpr.makeelement(W + 'b', {}))
 
+import re as _re_sub
+
+# 下标/上标标记：LaTeX 风格 _{...} 表示下标，^{...} 表示上标。
+# 例：U_{B} -> U 加下标 B；CO_{2} -> CO 加下标 2；10^{-3} -> 10 加上标 -3。
+# 花括号内不含左花括号；未闭合或空括号按普通文字原样保留。
+_SUBSUP_RE = _re_sub.compile(r'([_^])\{([^{}]*)\}')
+
+def parse_subsup(line):
+    """把一行文字按 _{} / ^{} 拆成 [(文字, 类型)]，类型为 'normal'/'sub'/'sup'。
+    没有标记时返回单段普通文字。空花括号(如 U_{})不当作标记，原样保留。"""
+    segs = []
+    pos = 0
+    for m in _SUBSUP_RE.finditer(line):
+        inner = m.group(2)
+        if inner == "":
+            continue  # 空括号不算标记，交给下方原样输出
+        if m.start() > pos:
+            segs.append((line[pos:m.start()], 'normal'))
+        segs.append((inner, 'sub' if m.group(1) == '_' else 'sup'))
+        pos = m.end()
+    if pos < len(line):
+        segs.append((line[pos:], 'normal'))
+    if not segs:
+        segs.append((line, 'normal'))
+    return segs
+
+def _set_vert_align(r, kind):
+    """给 run 设置上标/下标(w:vertAlign)。kind: 'sub'/'sup'。"""
+    rpr = r.find(W + 'rPr')
+    if rpr is None:
+        rpr = r.makeelement(W + 'rPr', {}); r.insert(0, rpr)
+    for e in rpr.findall(W + 'vertAlign'):
+        rpr.remove(e)
+    va = rpr.makeelement(W + 'vertAlign', {})
+    va.set(qn('w:val'), 'subscript' if kind == 'sub' else 'superscript')
+    rpr.append(va)
+
 def set_tc_text(tc, text, align=None, bold=False):
     """把单元格(tc)文本设为 text，保留首个 run 的字体格式；支持 \n 换行。
     align: 'center' 等可选对齐；bold: 是否加粗。"""
@@ -103,17 +140,36 @@ def set_tc_text(tc, text, align=None, bold=False):
             prev_p.addnext(target_p)  # 接在上一段之后，保持行序(原来固定接first_p会倒序)
         if align:
             _set_para_align(target_p, align)
-        r = target_p.makeelement(W + 'r', {})
-        if rpr_tmpl is not None:
-            r.append(clone(rpr_tmpl))
-        force_song5(r)  # 正文/表格填入文字统一宋体五号(封面用set_underline_value,不走这里)
-        if bold:
-            _set_run_bold(r)
-        t = target_p.makeelement(W + 't', {})
-        t.set(qn('xml:space'), 'preserve')
-        t.text = line
-        r.append(t)
-        target_p.append(r)
+        segs = parse_subsup(line)
+        first_seg = True
+        for seg_text, seg_kind in segs:
+            r = target_p.makeelement(W + 'r', {})
+            if rpr_tmpl is not None:
+                r.append(clone(rpr_tmpl))
+            force_song5(r)  # 正文/表格填入文字统一宋体五号(封面用set_underline_value,不走这里)
+            if bold:
+                _set_run_bold(r)
+            if seg_kind in ('sub', 'sup'):
+                _set_vert_align(r, seg_kind)
+            t = target_p.makeelement(W + 't', {})
+            t.set(qn('xml:space'), 'preserve')
+            t.text = seg_text
+            r.append(t)
+            target_p.append(r)
+            first_seg = False
+        # 整行没有任何 run(理论上不会发生)时补一个空 run，保持段落结构
+        if first_seg:
+            r = target_p.makeelement(W + 'r', {})
+            if rpr_tmpl is not None:
+                r.append(clone(rpr_tmpl))
+            force_song5(r)
+            if bold:
+                _set_run_bold(r)
+            t = target_p.makeelement(W + 't', {})
+            t.set(qn('xml:space'), 'preserve')
+            t.text = ""
+            r.append(t)
+            target_p.append(r)
 
 def force_song5(r):
     """把 run 的字体强制为宋体、字号五号(10.5pt=sz21)，保留其它属性(加粗/对齐等)。"""

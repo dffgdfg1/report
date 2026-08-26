@@ -83,6 +83,42 @@ def _text_px_height(text):
     return total * COND_LINE_PX
 
 
+# 文本列(标准号 C / 试验标准方法 D / 判定依据 E)每列的“每行半角字符数”估算。
+# Excel 列宽单位约等于默认字体下能放的半角字符数；CJK 记 2 个半角。
+# 留一点余量(乘 0.95)，避免边界字被挤到下一行导致算矮而截断。
+_TEXT_COLS = (3, 4, 5)  # C 标准号 / D 试验标准方法 / E 判定依据 (1-based)
+
+def _wrapped_line_count(text, chars_per_line):
+    """按列宽估算一段文字换行后占几行(含硬换行)。"""
+    if not text:
+        return 0
+    if chars_per_line < 1:
+        chars_per_line = 1
+    total = 0
+    norm = str(text).replace("\r\n", "\n").replace("\r", "\n")
+    for line in norm.split("\n"):
+        width = sum(2 if ord(ch) >= 0x2E80 else 1 for ch in line)
+        total += max(1, math.ceil(width / chars_per_line))
+    return total
+
+def _text_only_row_height(ws, row, vals):
+    """无配图时，按 C/D/E 三个文本列的换行行数估算该行需要的最小行高(pt)。
+    取三列里最高的一列；Excel 打开/打印不会自动撑高显式行，故必须显式给足。"""
+    from openpyxl.utils import get_column_letter
+    max_lines = 1
+    for c in _TEXT_COLS:
+        txt = vals[c - 1]
+        cd = ws.column_dimensions.get(get_column_letter(c))
+        w = (cd.width if cd and cd.width else 10.0)
+        cpl = max(1, int(w * 0.95))
+        n = _wrapped_line_count(txt, cpl)
+        if n > max_lines:
+            max_lines = n
+    h = COND_PAD_TOP_PX * 0.75 + max_lines * (COND_LINE_PX * 0.75) + COND_PAD_BOTTOM_PX * 0.75
+    return max(DATA_ROW_MIN_H, h)
+
+
+
 def _fmt_date(s):
     """日期原样输出（报告里已是 2026.08.14 点分格式）。"""
     return str(s or "").strip()
@@ -255,7 +291,9 @@ def _write_data_rows(ws, groups):
             if need_h > 0:
                 ws.row_dimensions[r].height = need_h
             else:
-                ws.row_dimensions[r].height = None
+                # 无配图：Excel 打开/打印不会自动撑高换行文字，必须按内容显式给足行高，
+                # 否则 C/D/E 列的长文字在打印时被下边框截断(屏幕上看着全，打印却缺)。
+                ws.row_dimensions[r].height = _text_only_row_height(ws, r, vals)
             r += 1
             seq += 1
 
