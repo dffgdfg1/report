@@ -1195,7 +1195,7 @@ function downloadFile(file) {
 }
 
 // 生成成功后：弹窗展示结果 + 下载/打开操作
-function showResultActions(file, size, noun) {
+function showResultActions(file, size, noun, extra) {
   noun = noun || "报告";
   const mb = (size / 1048576).toFixed(1);
   const mask = $("#resultModal"), fileBox = $("#resultFile"), actions = $("#resultActions");
@@ -1203,7 +1203,12 @@ function showResultActions(file, size, noun) {
     if (confirm(`${noun}已生成（${mb} MB）。是否下载？`)) window.location = "/api/download?file=" + encodeURIComponent(file);
     return;
   }
-  fileBox.innerHTML = `📄 ${escAttr(file)}<span class="fsize">（${mb} MB）</span>`;
+  let boxHtml = `📄 ${escAttr(file)}<span class="fsize">（${mb} MB）</span>`;
+  if (extra && extra.file) {
+    const emb = (extra.size / 1048576).toFixed(1);
+    boxHtml += `<br>📄 ${escAttr(extra.file)}<span class="fsize">（${emb} MB）</span>`;
+  }
+  fileBox.innerHTML = boxHtml;
   actions.innerHTML = "";
   const titleReset = mask.querySelector(".modal-head b");
   if (titleReset) titleReset.textContent = "✓ " + noun + "已生成";
@@ -1226,6 +1231,10 @@ function showResultActions(file, size, noun) {
   const dl = () => { downloadFile(file); showDownloaded(); };
   // 主按钮：下载报告（点完切到“已下载”状态）
   actions.appendChild(mkBtn("下载" + noun, "btn-primary", dl));
+  // 额外文件（如同步导出的试验汇总）：单独给一个下载按钮
+  if (extra && extra.file) {
+    actions.appendChild(mkBtn("下载" + (extra.noun || "附件"), "btn-ghost", () => { downloadFile(extra.file); }));
+  }
   // 仅本机(开发机)访问时才提供“打开所在文件夹”，远程访问不显示
   if (isLocal) {
     actions.appendChild(mkBtn("打开所在文件夹", "btn-ghost", async () => {
@@ -1423,11 +1432,16 @@ async function generatePlan() {
   status("正在生成试验计划…");
   $("#btnGenPlan").disabled = true;
   try {
-    const r = await fetch("/api/generate_plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state) });
+    // 是否同步导出「试验汇总」模版（首页勾选框）
+    const exportSummary = !!($("#chkSummary") && $("#chkSummary").checked);
+    const payload = Object.assign({}, state, { export_summary: exportSummary });
+    const r = await fetch("/api/generate_plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const j = await readJSON(r);
     if (!j.ok) { alert("生成失败：" + (j.error || "")); status("生成失败"); return; }
     status("试验计划生成完成 ✓");
-    showResultActions(j.file, j.size, "试验计划");
+    // 同步导出试验汇总失败时提醒（不阻断试验计划的展示）
+    if (j.summary_error) { toast("试验汇总未导出：" + j.summary_error); }
+    showResultActions(j.file, j.size, "试验计划", (j.summary_file ? { file: j.summary_file, size: j.summary_size, noun: "试验汇总" } : null));
   } catch (e) {
     if (String(e).includes("Failed to fetch")) {
       alert("生成过程中与后台断开了连接。\n\n多半是那个黑色命令行窗口被关闭了。\n请重新双击「启动.bat」，刷新页面后再生成。\n（你的进度已保存，不会丢失。）");

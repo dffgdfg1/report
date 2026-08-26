@@ -14,6 +14,9 @@ button:hover { filter: brightness(0.96); }
 .btn-mini { padding: 3px 9px; font-size: 12px; background: #f0f0f4; color: #555; }
 .btn-del { background: #ffe9e9; color: #d33; }
 #status { color: #eaf; font-size: 13px; margin-left: 8px; }
+/* 同步导出试验汇总的勾选框（在顶部按钮栏） */
+.chk-summary { display: inline-flex; align-items: center; gap: 4px; color: #fff; font-size: 13px; cursor: pointer; user-select: none; margin-right: 2px; }
+.chk-summary input { cursor: pointer; }
 main { max-width: 980px; margin: 18px auto; padding: 0 16px 80px; }
 .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
 .card > .head { padding: 12px 16px; font-weight: 600; font-size: 15px; border-bottom: 1px solid #eee;

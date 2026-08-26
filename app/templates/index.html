@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MINIEYE报告编辑助手</title>
 <link rel="icon" type="image/png" href="/static/logo.png?v=12">
-<link rel="stylesheet" href="/static/style.css?v=36">
+<link rel="stylesheet" href="/static/style.css?v=37">
 </head>
 <body>
 <header>
@@ -21,6 +21,7 @@
   <button class="btn-ghost" id="btnDevMgr">设备库</button>
   <div class="spacer"></div>
   <button class="btn-primary" id="btnSave">保存进度</button>
+  <label class="chk-summary" title="勾选后，生成试验计划时一并导出「试验汇总」模版(内容手填)"><input type="checkbox" id="chkSummary"> 同步试验汇总</label>
   <button class="btn-go" id="btnGenPlan">生成试验计划</button>
   <button class="btn-go" id="btnGenRaw">生成原始记录</button>
   <button class="btn-go" id="btnGen">生成报告</button>
@@ -127,6 +128,6 @@
 <input type="file" id="devFile" accept=".csv" style="display:none">
 
 <div class="toast" id="toast"></div>
-<script src="/static/app.js?v=57"></script>
+<script src="/static/app.js?v=58"></script>
 </body>
 </html>
