@@ -87,14 +87,13 @@ table.rows td { vertical-align: top; }
 .thumb .x { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,.55); color: #fff; border-radius: 50%;
   width: 20px; height: 20px; line-height: 20px; text-align: center; font-size: 13px; cursor: pointer; }
 .thumb .badge48 { position: absolute; bottom: 26px; left: 2px; background: rgba(31,111,235,.85); color: #fff; font-size: 10px; padding: 1px 4px; border-radius: 3px; }
-/* 缩略图拖动排序：整块可抓取；拖动中半透明；被拖到的目标左侧显示插入指示线 */
-.thumb { cursor: grab; }
-.thumb:active { cursor: grabbing; }
+/* 缩略图拖动排序：只有图片区(imgbox)是拖动手柄，图注框可正常划词复制 */
 .thumb .imgbox { cursor: grab; }
+.thumb .imgbox:active { cursor: grabbing; }
 .thumb.dragging { opacity: .45; }
 .thumb.drag-over { outline: 2px dashed #1f6feb; outline-offset: 2px; }
 .thumb.drag-over::before { content: ''; position: absolute; left: -7px; top: 0; bottom: 0; width: 3px; background: #1f6feb; border-radius: 2px; }
-/* 图注输入框保持可正常点选文字，不被整卡拖动抢走 */
+/* 图注输入框保持文本光标，可正常点选/划词复制 */
 .thumb .cap { cursor: text; }
 /* 点击缩略图放大查看 */
 .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.82); display: flex; align-items: center;

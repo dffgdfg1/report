@@ -220,6 +220,60 @@ function renderTests() {
   state.tests.forEach((t, i) => list.appendChild(renderTest(t, i)));
 }
 
+// 从 Word 复制的文字带下标/上标格式：Word 会同时放一份 HTML 到剪贴板，
+// 其中 <sub>/<sup> 就是下标/上标。粘贴时把它们转成本系统的 _{...} / ^{...} 标记，
+// 用户直接 Ctrl+V 就能保留下标，不用手敲标记。没有 HTML 或没有上下标时走默认粘贴。
+function htmlToSubSupText(html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  // 只保留 body 片段里的可见文字，sub/sup 转标记，其余标签丢弃
+  const walk = (node) => {
+    let out = '';
+    node.childNodes.forEach((c) => {
+      if (c.nodeType === Node.TEXT_NODE) { out += c.nodeValue; return; }
+      if (c.nodeType !== Node.ELEMENT_NODE) return;
+      const tag = c.tagName.toLowerCase();
+      const inner = walk(c);
+      // Word 有时用 vertical-align:sub/super 的 span 表示上下标
+      const va = (c.style && c.style.verticalAlign || '').toLowerCase();
+      if (tag === 'sub' || va === 'sub') { out += inner === '' ? '' : ('_{' + inner + '}'); }
+      else if (tag === 'sup' || va === 'super') { out += inner === '' ? '' : ('^{' + inner + '}'); }
+      else if (tag === 'br') { out += '\n'; }
+      else if (tag === 'p' || tag === 'div') { out += (out && !out.endsWith('\n') ? '\n' : '') + inner; }
+      else { out += inner; }
+    });
+    return out;
+  };
+  let text = walk(tpl.content);
+  // Word 的 HTML 常带一堆 \r 和首尾空行，做基础清理（保留正文换行）
+  text = text.replace(/\r/g, '');
+  return text;
+}
+
+// 给一个 input/textarea 挂上「粘贴时把 Word 上下标转成 _{}/^{} 标记」的处理。
+// onChange(newValue) 由调用方决定如何写回数据并保存。
+function enableSubSupPaste(inp, onChange) {
+  inp.addEventListener('paste', (e) => {
+    const cd = e.clipboardData || window.clipboardData;
+    if (!cd) return;
+    const html = cd.getData('text/html');
+    if (!html) return;  // 没有 HTML（纯文本粘贴）就走浏览器默认行为
+    const converted = htmlToSubSupText(html);
+    // 转换结果和纯文本一样（没有上下标）时不拦截，让默认粘贴处理，行为最自然
+    const plain = cd.getData('text/plain');
+    if (converted === plain) return;
+    e.preventDefault();
+    const start = inp.selectionStart != null ? inp.selectionStart : inp.value.length;
+    const end = inp.selectionEnd != null ? inp.selectionEnd : inp.value.length;
+    const before = inp.value.slice(0, start);
+    const after = inp.value.slice(end);
+    inp.value = before + converted + after;
+    const caret = start + converted.length;
+    try { inp.setSelectionRange(caret, caret); } catch (err) {}
+    if (onChange) onChange(inp.value);
+  });
+}
+
 function fieldInput(obj, key, label, type) {
   if (type === "date") return dateField(obj, key, label);
   if (type === "daterange") return dateRangeField(obj, key, label);
@@ -228,6 +282,10 @@ function fieldInput(obj, key, label, type) {
   const inp = el(type === "textarea" ? "textarea" : "input");
   inp.value = obj[key] || "";
   inp.oninput = () => { obj[key] = inp.value; scheduleSave(); };
+  // 试验条件/试验要求：从 Word 粘贴时自动把上下标转成 _{}/^{} 标记
+  if (key === "condition" || key === "requirement") {
+    enableSubSupPaste(inp, (v) => { obj[key] = v; scheduleSave(); });
+  }
   f.appendChild(inp);
   return f;
 }
@@ -374,6 +432,7 @@ function standardField(t) {
   const inp = el("textarea"); inp.value = t.standard || ""; inp.rows = 3; inp.className = "std-input";
   inp.placeholder = "可多行录入，换行/空格会原样保留到报告里。下标用 U_{B}，上标用 10^{-3}";
   inp.oninput = () => { t.standard = inp.value; scheduleSave(); };
+  enableSubSupPaste(inp, (v) => { t.standard = v; scheduleSave(); });
   const btn = el("button", "btn-mini", "参考客户大纲");
   btn.title = "点击填入“参考客户大纲”";
   btn.onclick = () => { t.standard = "参考客户大纲"; inp.value = t.standard; scheduleSave(); };
@@ -783,30 +842,33 @@ function rerenderTest(t) {
 // 让缩略图可拖动排序：拖起一张图，放到另一张上就把它插到那个位置。
 // arr 是该分组的图片数组；用 DOM 里 .thumb 的实时位置算 from/to，避免闭包捕获的下标
 // 因 splice 而失效。reorder 完成后重渲染该测试卡片，缩略图顺序即刷新。
-function enableThumbDrag(thumbEl, arr, reorder) {
-  thumbEl.setAttribute('draggable', 'true');
-  thumbEl.addEventListener('dragstart', (e) => {
-    // 在图注输入框里选字/拖字时不要触发整卡拖动
-    if (e.target && e.target.tagName === 'INPUT') { e.preventDefault(); return; }
+// 让缩略图可拖动排序：只有图片区(handleEl)是拖动手柄，图注输入框在拖动面之外，
+// 用户可正常划词复制。放置目标仍是整张缩略图(thumbEl)。用 DOM 里 .thumb 的实时
+// 位置算 from/to，避免闭包捕获的下标因 splice 而失效。
+function enableThumbDrag(thumbEl, handleEl, arr, reorder) {
+  handleEl.setAttribute('draggable', 'true');
+  handleEl.addEventListener('dragstart', (e) => {
     thumbEl.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', ''); } catch (err) {}
   });
-  thumbEl.addEventListener('dragend', () => thumbEl.classList.remove('dragging'));
+  handleEl.addEventListener('dragend', () => thumbEl.classList.remove('dragging'));
   thumbEl.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
     const parent = thumbEl.parentNode;
     const dragging = parent && parent.querySelector('.thumb.dragging');
-    if (dragging && dragging !== thumbEl) thumbEl.classList.add('drag-over');
+    if (!dragging) return;  // 不是在拖缩略图(可能在划词)，不拦截
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragging !== thumbEl) thumbEl.classList.add('drag-over');
   });
   thumbEl.addEventListener('dragleave', () => thumbEl.classList.remove('drag-over'));
   thumbEl.addEventListener('drop', (e) => {
-    e.preventDefault();
-    thumbEl.classList.remove('drag-over');
     const parent = thumbEl.parentNode;
     const dragging = parent && parent.querySelector('.thumb.dragging');
-    if (!dragging || dragging === thumbEl) return;
+    if (!dragging) return;
+    e.preventDefault();
+    thumbEl.classList.remove('drag-over');
+    if (dragging === thumbEl) return;
     const kids = [...parent.querySelectorAll('.thumb')];
     const from = kids.indexOf(dragging);
     const to = kids.indexOf(thumbEl);
@@ -841,11 +903,12 @@ function renderConditionImages(t) {
     ib.appendChild(img); th2.appendChild(ib);
     const cap = el("input", "cap"); cap.placeholder = "图注（可选）"; cap.value = im.caption || "";
     cap.oninput = () => { im.caption = cap.value; scheduleSave(); };
+    enableSubSupPaste(cap, (v) => { im.caption = v; scheduleSave(); });
     th2.appendChild(cap);
     const x = el("span", "x", "×"); x.title = "删除";
     x.onclick = () => { t.condition_images.splice(ii, 1); rerenderTest(t); };
     th2.appendChild(x);
-    enableThumbDrag(th2, t.condition_images, () => rerenderTest(t));
+    enableThumbDrag(th2, ib, t.condition_images, () => rerenderTest(t));
     thumbs.appendChild(th2);
   });
   wrap.appendChild(thumbs);
@@ -902,11 +965,12 @@ function renderImageGroup(t, g, gi) {
     ib.appendChild(img); th2.appendChild(ib);
     const cap = el("input", "cap"); cap.placeholder = "图注（可选）"; cap.value = im.caption || "";
     cap.oninput = () => { im.caption = cap.value; scheduleSave(); };
+    enableSubSupPaste(cap, (v) => { im.caption = v; scheduleSave(); });
     th2.appendChild(cap);
     const x = el("span", "x", "×"); x.title = "删除";
     x.onclick = () => { g.images.splice(ii, 1); rerenderTest(t); };
     th2.appendChild(x);
-    enableThumbDrag(th2, g.images, () => rerenderTest(t));
+    enableThumbDrag(th2, ib, g.images, () => rerenderTest(t));
     thumbs.appendChild(th2);
   });
   box.appendChild(thumbs);
