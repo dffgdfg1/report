@@ -226,13 +226,17 @@ function renderTests() {
 function htmlToSubSupText(html) {
   const tpl = document.createElement('template');
   tpl.innerHTML = html;
-  // 只保留 body 片段里的可见文字，sub/sup 转标记，其余标签丢弃
+  // Word 的剪贴板 HTML 带一大堆 <style>/<head>/<xml>/<o:p> 等样式与命名空间标签，
+  // 只能取正文文字，否则会把 @font-face / p.MsoNormal 那一坨 CSS 也当成文字粘进来。
+  // SKIP_TAGS：这些标签整个跳过（连同其文字内容）。含冒号的命名空间标签(如 o:p、w:sub)也跳过。
+  const SKIP_TAGS = new Set(['style', 'script', 'head', 'title', 'meta', 'link', 'xml', 'o:p']);
   const walk = (node) => {
     let out = '';
     node.childNodes.forEach((c) => {
       if (c.nodeType === Node.TEXT_NODE) { out += c.nodeValue; return; }
       if (c.nodeType !== Node.ELEMENT_NODE) return;
       const tag = c.tagName.toLowerCase();
+      if (SKIP_TAGS.has(tag) || tag.indexOf(':') >= 0) return;  // 样式/脚本/命名空间标签整个丢弃
       const inner = walk(c);
       // Word 有时用 vertical-align:sub/super 的 span 表示上下标
       const va = (c.style && c.style.verticalAlign || '').toLowerCase();
@@ -244,10 +248,11 @@ function htmlToSubSupText(html) {
     });
     return out;
   };
-  let text = walk(tpl.content);
+  const body = tpl.content.querySelector('body');
+  let text = walk(body || tpl.content);
   // Word 的 HTML 常带一堆 \r 和首尾空行，做基础清理（保留正文换行）
-  text = text.replace(/\r/g, '');
-  return text;
+  text = text.replace(/\r/g, '').replace(/\u00a0/g, ' ');
+  return text.trim();
 }
 
 // 给一个 input/textarea 挂上「粘贴时把 Word 上下标转成 _{}/^{} 标记」的处理。
@@ -259,9 +264,9 @@ function enableSubSupPaste(inp, onChange) {
     const html = cd.getData('text/html');
     if (!html) return;  // 没有 HTML（纯文本粘贴）就走浏览器默认行为
     const converted = htmlToSubSupText(html);
-    // 转换结果和纯文本一样（没有上下标）时不拦截，让默认粘贴处理，行为最自然
-    const plain = cd.getData('text/plain');
-    if (converted === plain) return;
+    // 只有确实转出了上下标标记时才拦截；否则让浏览器走默认纯文本粘贴，
+    // 避免把 Word 剪贴板里的多余空白/换行也一起处理，行为最自然。
+    if (converted.indexOf('_{') < 0 && converted.indexOf('^{') < 0) return;
     e.preventDefault();
     const start = inp.selectionStart != null ? inp.selectionStart : inp.value.length;
     const end = inp.selectionEnd != null ? inp.selectionEnd : inp.value.length;
