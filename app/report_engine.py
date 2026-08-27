@@ -330,6 +330,7 @@ def rebuild_image_table(tbl_el, groups, doc, item_no=1):
 
     def new_header(title, page_break=False):
         r = clone(header_tmpl)
+        _set_row_height(r, 0.8)   # 试验前/中/后 组标题行固定行高 0.8cm
         tc = row_cells(r)[0]
         clear_cell_images(tc)
         set_tc_text(tc, title, bold=True)   # 图组标题加粗
@@ -378,11 +379,7 @@ def rebuild_image_table(tbl_el, groups, doc, item_no=1):
         """独立图注行：与图片行同为 2 列，caps=[左图注, 右图注]。
         图注不再嵌在图片单元格里，而是单独一行承托在图片行下方。"""
         r = clone(img_row_tmpl)
-        # 图注行不需要图片行那么高，取消最小行高让其按文字自适应
-        trPr = r.find(qn('w:trPr'))
-        if trPr is not None:
-            for trH in trPr.findall(qn('w:trHeight')):
-                trPr.remove(trH)
+        _set_row_height(r, 0.8)   # 图注行固定行高 0.8cm
         for j, tc in enumerate(row_cells(r)):
             clear_cell_images(tc)
             cap = caps[j] if j < len(caps) else ""
