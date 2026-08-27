@@ -14,6 +14,9 @@ from docx.oxml.ns import qn
 # 可用宽16cm / 2列 ≈ 8cm，图宽取7.6cm留少量边距；竖图高度封顶避免过高。
 IMG_W_CM = 7.6        # 每张图占满列宽
 IMG_MAX_H_CM = 6.5    # 高度上限（防竖图过高）
+# 按图片朝向限制尺寸：横向(w>=h)宽最大 8.2cm，纵向(h>w)高最大 7.1cm；超出则等比压缩到范围内。
+IMG_W_MAX_CM = 8.2    # 横向图：宽度上限
+IMG_H_MAX_CM = 7.1    # 纵向图：高度上限
 ROW_H_CM = 7.3        # 图片行高：留白使一页约放6张（3行×2列）
 FIT_MODE = "fill_width"
 # 兼容旧引用（/api/meta 用来显示角标）
@@ -243,18 +246,40 @@ def normalize_image(img_path):
     return bio, size
 
 def _target_size(size):
-    """填满列宽：宽度固定为 IMG_W_CM，高度按原图比例走(不变形)。
-    竖图高度超过上限时改按高度反推宽度，避免过高。"""
+    """按图片朝向决定目标尺寸(不变形)：
+    - 横向图(w>=h)：宽度取 IMG_W_MAX_CM，高按比例；若高超过 IMG_H_MAX_CM 再按高压缩。
+    - 纵向图(h>w)：高度取 IMG_H_MAX_CM，宽按比例；若宽超过 IMG_W_MAX_CM 再按宽压缩。
+    这样横图填满宽度、竖图不过高，且都被限制在 8.2cm×7.1cm 框内。"""
     try:
         w, h = size
-        tw = IMG_W_CM
-        th = tw * h / w
-        if th > IMG_MAX_H_CM:      # 竖图/过高：按高度封顶反推宽度
-            th = IMG_MAX_H_CM
+        if w >= h:  # 横向：先按宽度铺满
+            tw = IMG_W_MAX_CM
+            th = tw * h / w
+            if th > IMG_H_MAX_CM:      # 万一还是偏高，按高度再压
+                th = IMG_H_MAX_CM
+                tw = th * w / h
+        else:       # 纵向：先按高度撑到最大
+            th = IMG_H_MAX_CM
             tw = th * w / h
+            if tw > IMG_W_MAX_CM:      # 万一还是偏宽，按宽度再压
+                tw = IMG_W_MAX_CM
+                th = tw * h / w
         return Cm(tw), Cm(th)
     except Exception:
         return Cm(IMG_W_CM), Cm(IMG_H_CM)
+
+def _format_caption(item_no, seq, text):
+    """拼接图注：图<item_no>.<seq> <图注文字>。
+    - 图注文字为空时仅显示编号(图<item_no>.<seq>)，保证每张图都有连续编号。
+    - 若图注文字以空格结尾(补斜杠信号)，保留该结尾空格，交给 put_picture 补斜杠。"""
+    label = "图%d.%d" % (item_no, seq)
+    raw = text or ""
+    trailing_space = raw.endswith(' ')
+    body = raw.strip()
+    if not body:
+        return label
+    joined = "%s %s" % (label, body)
+    return joined + ' ' if trailing_space else joined
 
 def put_picture(tc, doc, img_path, caption=""):
     """在单元格 tc 内放入图片(4.8×6.4)，可选图注。tc 需已在 doc 内。"""
@@ -289,9 +314,11 @@ def put_picture(tc, doc, img_path, caption=""):
         for r in cp.runs:
             force_song5(r._r)
 
-def rebuild_image_table(tbl_el, groups, doc):
+def rebuild_image_table(tbl_el, groups, doc, item_no=1):
     """按 groups=[{title, images:[{path,caption}]}] 重建 2 列图片表。
-    使用表内首个整行(合并标题行)与首个图片行作为格式样板。"""
+    使用表内首个整行(合并标题行)与首个图片行作为格式样板。
+    item_no 为测试项序号：图注编号为 图<item_no>.<序号>，序号跨三组(试验前/中/后)连续累加(方案B)。
+    分页：试验前/试验中/试验后 三组各自的标题行前加分页符，使三组各占一页。"""
     rows = tbl_rows(tbl_el)
     header_tmpl = clone(rows[0])            # 合并标题行样板（如“试验前图片”）
     img_row_tmpl = clone(rows[1])           # 双图行样板
@@ -299,11 +326,16 @@ def rebuild_image_table(tbl_el, groups, doc):
     for r in rows:
         tbl_el.remove(r)
 
-    def new_header(title):
+    def new_header(title, page_break=False):
         r = clone(header_tmpl)
         tc = row_cells(r)[0]
         clear_cell_images(tc)
         set_tc_text(tc, title, bold=True)   # 图组标题加粗
+        if page_break:
+            # 让本组从新页开始：给标题单元格首段加 pageBreakBefore
+            for p in tc.findall(W + 'p'):
+                add_page_break_before(p)
+                break
         return r
 
     def _set_row_height(r, cm):
@@ -340,11 +372,15 @@ def rebuild_image_table(tbl_el, groups, doc):
             _vcenter(tc)
         return r
 
+    seq = 0                    # 图注序号：跨三组连续累加(方案B)，同一测试项内不重复
+    first_group = True         # 首组(试验前)不额外加分页——它已随测试项标题的分页进入新页
     for g in groups:
         imgs = g.get("images", [])
         if not imgs and not g.get("title"):
             continue
-        tbl_el.append(new_header(g.get("title", "")))
+        # 试验中/试验后 组标题前加分页符，使三组各占一页；首组不加
+        tbl_el.append(new_header(g.get("title", ""), page_break=not first_group))
+        first_group = False
         # 每行 2 图
         for i in range(0, len(imgs), 2):
             r = new_img_row()
@@ -352,7 +388,9 @@ def rebuild_image_table(tbl_el, groups, doc):
             for j in range(2):
                 if i + j < len(imgs):
                     img = imgs[i + j]
-                    put_picture(cells[j], doc, img["path"], img.get("caption", ""))
+                    seq += 1
+                    caption = _format_caption(item_no, seq, img.get("caption", ""))
+                    put_picture(cells[j], doc, img["path"], caption)
                 else:
                     # 空单元格用斜杠占位(水平/垂直居中)，避免留白显得缺图
                     set_tc_text(cells[j], "/", align="center")
@@ -431,8 +469,9 @@ def fill_concl_tbl(tbl, doc, samples):
         set_tc_text(c[2], s.get("conclusion", ""))
         remark.addprevious(r)
 
-def build_section(doc, donor_doc, test):
-    """在 doc 的“报告结束”段前插入一个填充好的测试段落。test 为该测试项的数据字典。"""
+def build_section(doc, donor_doc, test, item_no=1):
+    """在 doc 的“报告结束”段前插入一个填充好的测试段落。test 为该测试项的数据字典。
+    item_no 为该测试项序号(1起)，用于图注编号前缀 图<item_no>.<序号>。"""
     blocks = _donor_section_blocks(donor_doc)
     tbls = _section_tables(blocks)
     # 标题（blocks[0]）
@@ -465,7 +504,7 @@ def build_section(doc, donor_doc, test):
         append_pictures_to_cell(cond_cell, doc, cond_imgs)
     # 重建图片表（此时已在 doc 内）
     img_tbl = tbls[4]
-    rebuild_image_table(img_tbl, test.get("image_groups", []), doc)
+    rebuild_image_table(img_tbl, test.get("image_groups", []), doc, item_no=item_no)
     return inserted
 
 def append_pictures_to_cell(tc, doc, imgs):
@@ -901,10 +940,10 @@ def generate(project, out_path):
     replace_workmode_section(doc, info.get("carmaker", ""))
     build_dynamic_toc(doc)
 
-    for t in tests:
+    for idx, t in enumerate(tests, 1):
         # 段内"样品名称"始终与首页(样品信息)一致
         t["sample_name"] = info.get("sample_name", "")
-        build_section(doc, donor, t)
+        build_section(doc, donor, t, item_no=idx)
 
     # 让 Word/WPS 打开文档时自动更新目录页码（跨平台，不依赖服务器 Office）
     set_update_fields_on_open(doc)
