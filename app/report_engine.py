@@ -334,6 +334,7 @@ def rebuild_image_table(tbl_el, groups, doc, item_no=1):
         tc = row_cells(r)[0]
         clear_cell_images(tc)
         set_tc_text(tc, title, bold=True)   # 图组标题加粗
+        _vcenter(tc)   # 组标题上下居中
         if page_break:
             # 让本组从新页开始：给标题单元格首段加 pageBreakBefore
             for p in tc.findall(W + 'p'):
