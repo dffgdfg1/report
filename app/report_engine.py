@@ -281,8 +281,21 @@ def _format_caption(item_no, seq, text):
     joined = "%s %s" % (label, body)
     return joined + ' ' if trailing_space else joined
 
+def _slashfill_caption(caption):
+    """图注末尾若带空格(补斜杠信号)，用斜杠补到固定宽度；否则原样返回。"""
+    if caption and caption.endswith(' '):
+        base_text = caption.rstrip()
+        target_width = 40  # 约字符宽度(中文算2)
+        current_width = sum(2 if '一' <= c <= '鿿' else 1 for c in base_text)
+        if current_width < target_width:
+            fill_count = target_width - current_width
+            return base_text + ' ' + '/' * fill_count
+    return caption
+
 def put_picture(tc, doc, img_path, caption=""):
-    """在单元格 tc 内放入图片(4.8×6.4)，可选图注。tc 需已在 doc 内。"""
+    """在单元格 tc 内放入图片，居中。tc 需已在 doc 内。
+    注意：图注不再嵌在本单元格内，改由独立的图注行承载(见 rebuild_image_table)。
+    caption 参数保留仅为向后兼容；若传入则仍在图下附一段(旧行为)。"""
     cell = _Cell(tc, Table(tc.getparent().getparent(), doc))
     # 用单元格首段承载图片，居中
     p = cell.paragraphs[0]
@@ -297,18 +310,7 @@ def put_picture(tc, doc, img_path, caption=""):
         w, h = _target_size(None)
         run.add_picture(img_path, width=w, height=h)
     if caption:
-        # 如果标题末尾有空格，用斜杠填充到固定长度
-        caption_text = caption
-        if caption_text.endswith(' '):
-            # 去掉末尾空格，计算需要填充的长度
-            base_text = caption_text.rstrip()
-            # 填充到约25个字符宽度（中文字符算2个宽度）
-            target_width = 40
-            current_width = sum(2 if '一' <= c <= '鿿' else 1 for c in base_text)
-            if current_width < target_width:
-                fill_count = target_width - current_width
-                caption_text = base_text + ' ' + '/' * fill_count
-
+        caption_text = _slashfill_caption(caption)
         cp = cell.add_paragraph(caption_text)
         cp.alignment = 1
         for r in cp.runs:
@@ -372,6 +374,21 @@ def rebuild_image_table(tbl_el, groups, doc, item_no=1):
             _vcenter(tc)
         return r
 
+    def new_caption_row(caps):
+        """独立图注行：与图片行同为 2 列，caps=[左图注, 右图注]。
+        图注不再嵌在图片单元格里，而是单独一行承托在图片行下方。"""
+        r = clone(img_row_tmpl)
+        # 图注行不需要图片行那么高，取消最小行高让其按文字自适应
+        trPr = r.find(qn('w:trPr'))
+        if trPr is not None:
+            for trH in trPr.findall(qn('w:trHeight')):
+                trPr.remove(trH)
+        for j, tc in enumerate(row_cells(r)):
+            clear_cell_images(tc)
+            cap = caps[j] if j < len(caps) else ""
+            set_tc_text(tc, _slashfill_caption(cap), align="center")
+        return r
+
     seq = 0                    # 图注序号：跨三组连续累加(方案B)，同一测试项内不重复
     first_group = True         # 首组(试验前)不额外加分页——它已随测试项标题的分页进入新页
     for g in groups:
@@ -381,20 +398,23 @@ def rebuild_image_table(tbl_el, groups, doc, item_no=1):
         # 试验中/试验后 组标题前加分页符，使三组各占一页；首组不加
         tbl_el.append(new_header(g.get("title", ""), page_break=not first_group))
         first_group = False
-        # 每行 2 图
+        # 每行 2 图，图片行下紧跟一行图注行
         for i in range(0, len(imgs), 2):
             r = new_img_row()
             cells = row_cells(r)
+            caps = ["", ""]
             for j in range(2):
                 if i + j < len(imgs):
                     img = imgs[i + j]
                     seq += 1
-                    caption = _format_caption(item_no, seq, img.get("caption", ""))
-                    put_picture(cells[j], doc, img["path"], caption)
+                    caps[j] = _format_caption(item_no, seq, img.get("caption", ""))
+                    put_picture(cells[j], doc, img["path"])   # 图注独立成行，不塞进图片格
                 else:
                     # 空单元格用斜杠占位(水平/垂直居中)，避免留白显得缺图
                     set_tc_text(cells[j], "/", align="center")
+                    caps[j] = ""
             tbl_el.append(r)
+            tbl_el.append(new_caption_row(caps))
 # ---------- 测试段落（从供体克隆一整段并填充） ----------
 def _donor_section_blocks(donor_doc):
     """从供体取“高温耐久测试”整段的块序列（标题→…→试验图片表）作为样板。
