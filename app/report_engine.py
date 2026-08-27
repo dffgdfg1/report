@@ -960,7 +960,8 @@ def generate(project, out_path):
     replace_workmode_section(doc, info.get("carmaker", ""))
     build_dynamic_toc(doc)
 
-    for idx, t in enumerate(tests, 1):
+    # 试验结果汇总占第 1 章，故测试项从第 2 章起；图注前缀=章节号，跟章节保持一致
+    for idx, t in enumerate(tests, 2):
         # 段内"样品名称"始终与首页(样品信息)一致
         t["sample_name"] = info.get("sample_name", "")
         build_section(doc, donor, t, item_no=idx)
