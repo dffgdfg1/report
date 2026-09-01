@@ -268,11 +268,16 @@ def _target_size(size):
     except Exception:
         return Cm(IMG_W_CM), Cm(IMG_H_CM)
 
+# 每个测试项(章)下固定 5 个小节：样品信息/试验设备/试验描述/试验结论/试验图片，
+# “试验图片”恒为第 5 个小节，故图片挂在 X.5 下，图注编号应为三级 图<章>.5.<序>。
+IMG_SUBSECTION_NO = 5
+
 def _format_caption(item_no, seq, text):
-    """拼接图注：图<item_no>.<seq> <图注文字>。
-    - 图注文字为空时仅显示编号(图<item_no>.<seq>)，保证每张图都有连续编号。
+    """拼接图注：图<item_no>.5.<seq> <图注文字>。
+    - <item_no> 为测试项(大标题)章号，5 为“试验图片”小节固定编号，seq 为组内连续序号。
+    - 图注文字为空时仅显示编号(图<item_no>.5.<seq>)，保证每张图都有连续编号。
     - 若图注文字以空格结尾(补斜杠信号)，保留该结尾空格，交给 put_picture 补斜杠。"""
-    label = "图%d.%d" % (item_no, seq)
+    label = "图%d.%d.%d" % (item_no, IMG_SUBSECTION_NO, seq)
     raw = text or ""
     trailing_space = raw.endswith(' ')
     body = raw.strip()
@@ -319,7 +324,7 @@ def put_picture(tc, doc, img_path, caption=""):
 def rebuild_image_table(tbl_el, groups, doc, item_no=1):
     """按 groups=[{title, images:[{path,caption}]}] 重建 2 列图片表。
     使用表内首个整行(合并标题行)与首个图片行作为格式样板。
-    item_no 为测试项序号：图注编号为 图<item_no>.<序号>，序号跨三组(试验前/中/后)连续累加(方案B)。
+    item_no 为测试项序号：图注编号为 图<item_no>.5.<序号>(5=“试验图片”小节)，序号跨三组(试验前/中/后)连续累加(方案B)。
     分页：试验前/试验中/试验后 三组各自的标题行前加分页符，使三组各占一页。"""
     rows = tbl_rows(tbl_el)
     header_tmpl = clone(rows[0])            # 合并标题行样板（如“试验前图片”）
@@ -489,7 +494,7 @@ def fill_concl_tbl(tbl, doc, samples):
 
 def build_section(doc, donor_doc, test, item_no=1):
     """在 doc 的“报告结束”段前插入一个填充好的测试段落。test 为该测试项的数据字典。
-    item_no 为该测试项序号(1起)，用于图注编号前缀 图<item_no>.<序号>。"""
+    item_no 为该测试项序号(1起)，用于图注编号前缀 图<item_no>.5.<序号>。"""
     blocks = _donor_section_blocks(donor_doc)
     tbls = _section_tables(blocks)
     # 标题（blocks[0]）
