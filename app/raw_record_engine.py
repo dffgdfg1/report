@@ -36,6 +36,55 @@ def _join(items):
     return "\n".join(s for s in items if str(s or "").strip())
 
 
+import re as _re
+# 分隔符：顿号、逗号(中英)、斜杠、分号(中英)、空白 —— 用来切开列举
+_SEP_RE = _re.compile(r"[、，,/／;；\s]+")
+# 单段：范围 1#-3#/1~3/1到3，或单个 8#/8
+_RANGE_RE = _re.compile(r"^(\d+)#?\s*[-~－—到至]\s*(\d+)#?$")
+_SINGLE_RE = _re.compile(r"^(\d+)#?$")
+
+def _parse_sample_nos(s):
+    """把样机编号串解析成去重后的编号集合(整数)。认不出返回 None。
+    支持范围、单个、以及用 顿号/逗号/斜杠/分号/空格 分隔的列举与混合，
+    如 1#-3#、5#  或  1#,3#,5#  或  7#-9# 11#。"""
+    s = (s or "").strip()
+    if not s:
+        return set()
+    nums = set()
+    for seg in _SEP_RE.split(s):
+        seg = seg.strip()
+        if not seg:
+            continue
+        m = _RANGE_RE.match(seg)
+        if m:
+            a, b = int(m.group(1)), int(m.group(2))
+            if a > b:
+                a, b = b, a
+            nums.update(range(a, b + 1))
+            continue
+        m = _SINGLE_RE.match(seg)
+        if m:
+            nums.add(int(m.group(1)))
+            continue
+        return None  # 含字母等认不出的格式，整串放弃自动推算
+    return nums
+
+def _sample_count(test, info):
+    """该测试项实际用的样机数量：优先由本项「样机编号」推算（如 1#-3# → 3），
+    因为每个测试项用的样机不一定是送样全部。支持：
+      - 范围 1#-3# / 1~3 / 1到3          → 端点个数
+      - 单个 8# / 8                      → 1
+      - 列举/混合 1#、3#、5# / 1#-3#,5#  → 去重计数
+    推不出来时依次回退：test.samples 的行数 → 首页 info 的样品数量(sample_qty)。"""
+    nums = _parse_sample_nos(str(test.get("sample_no", "") or ""))
+    if nums:
+        return str(len(nums))
+    samples = test.get("samples") or []
+    if samples:
+        return str(len(samples))
+    return str(info.get("sample_qty", "") or "")
+
+
 def _fill_table(tbl_el, info, test, doc):
     """填一张原始记录表（15 行）。tbl_el 为 <w:tbl> 元素。"""
     # 移除表格浮动属性，让表格可以跨页
@@ -60,8 +109,9 @@ def _fill_table(tbl_el, info, test, doc):
     c = cells(0); _set(c[1], info.get("sample_name", "")); _set(c[3], info.get("sample_model", ""))
     # R1 样品零件号 / 委托单号
     c = cells(1); _set(c[1], info.get("sample_no", "")); _set(c[3], info.get("commission_no", ""))
-    # R2 样品数量 / 样品编号（样品编号取该测试项的样机编号）
-    c = cells(2); _set(c[1], info.get("sample_qty", "")); _set(c[3], test.get("sample_no", ""))
+    # R2 样品数量 / 样品编号（都取该测试项的样机编号：数量由样机编号个数推算，
+    # 而非首页送样总数——每个测试项用的样机不一定是送样全部，如 1#-3# 即 3 个）
+    c = cells(2); _set(c[1], _sample_count(test, info)); _set(c[3], test.get("sample_no", ""))
     # R3 额定电压 / 环境条件（额定电压有值且未带单位时自动补 V）
     c = cells(3); _set(c[1], _with_volt_unit(info.get("rated_volt", ""))); _set(c[3], test.get("env", ""))
     # R4 设备名称 / 设备编号
