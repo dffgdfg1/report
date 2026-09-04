@@ -287,8 +287,10 @@ function fieldInput(obj, key, label, type) {
   const inp = el(type === "textarea" ? "textarea" : "input");
   inp.value = obj[key] || "";
   inp.oninput = () => { obj[key] = inp.value; scheduleSave(); };
-  // 试验条件/试验要求：从 Word 粘贴时自动把上下标转成 _{}/^{} 标记
+  // 试验条件/试验要求：从 Word 粘贴时自动把上下标转成 _{}/^{} 标记；
+  // 并标记为聚焦自动放大(见 style.css .auto-expand)，平时紧凑、选中时放大便于查看
   if (key === "condition" || key === "requirement") {
+    inp.classList.add("auto-expand");
     enableSubSupPaste(inp, (v) => { obj[key] = v; scheduleSave(); });
   }
   f.appendChild(inp);
