@@ -125,9 +125,13 @@ def _fill_table(tbl_el, info, test, doc):
     _cond_imgs = test.get("condition_images", [])
     c = cells(7); _set(c[1], _cond_text); _vcenter(c[1])
     _append_cond_images(c[1], doc, _cond_imgs)
-    # 仅当试验条件内容较多（有配图或文字超阈值）时，才分页+撕框；
-    # 内容少时保持默认行高、不插分页符，避免产生空白页。
-    _need_split = bool(_cond_imgs) or _condition_is_long(_cond_text, _DEFAULT_ROW_HEIGHTS.get(7))
+    # 是否需要分页+撑高：有配图时必分(配图要独占版面)；纯文字时——即使试验条件
+    # 比默认行高长，只要整张表用自然行高仍能一页放下，就不分页，避免内容不多也硬撑成两页。
+    if _cond_imgs:
+        _need_split = True
+    else:
+        _need_split = _condition_is_long(_cond_text, _DEFAULT_ROW_HEIGHTS.get(7)) \
+            and not _table_fits_one_page(doc, rows, _cond_text)
     # 分页模式下撑高 R7，填满第一页
     if _need_split:
         h7 = _page1_r7_height(doc, rows)
@@ -247,6 +251,28 @@ def _condition_is_long(text, r7_default=None):
         r7_default = _DEFAULT_ROW_HEIGHTS.get(7, 2283)
     needed = _visual_line_count(text) * _COND_LINE_TWIPS + _COND_CELL_PAD_TWIPS
     return needed > r7_default
+
+
+def _natural_r7_height(text):
+    """试验条件按内容估算的「自然」行高(twips)：够放下全部文字，
+    但不低于模板默认行高。用于判断整表能否一页放下。"""
+    needed = _visual_line_count(text) * _COND_LINE_TWIPS + _COND_CELL_PAD_TWIPS
+    return max(needed, _DEFAULT_ROW_HEIGHTS.get(7, 2283))
+
+
+# 标题(试验记录表)+编号行两段的实际占高，约 800 twips。
+# 注意：这里要「准」而非「保守」——判断能否一页放下时高估会导致本可一页的内容被误分两页，
+# 与 _HEADER_PARA_TWIPS(分页布局里宁可高估以防溢出)取向相反，故单列一个常量。
+_HEADER_FIT_TWIPS = 800
+
+def _table_fits_one_page(doc, rows, cond_text):
+    """不分页、不撑高的前提下，用自然行高估算整张 15 行表能否放进一页。
+    R7(试验条件)用内容估算的自然高度，其余行用模板/现有行高。
+    只有放不下时才需要分页(见 _need_split)，避免内容不多也硬分成两页。"""
+    usable = _usable_text_height(doc)
+    others = _rows_height_sum(rows, [i for i in range(len(rows)) if i != 7])
+    r7 = _natural_r7_height(cond_text)
+    return _HEADER_FIT_TWIPS + others + r7 <= usable
 
 
 
