@@ -347,10 +347,13 @@ def _append_cond_images(tc, doc, imgs):
     - 多张：每行横排 2 张，比主报告略大，用无边框内嵌表格承载(居中)。"""
     if not imgs:
         return
+    # tc 是原始 <w:tc> 元素，需包成 _Cell 才能 add_paragraph/add_table
+    from docx.table import Table, _Cell
+    tcell = _Cell(tc, Table(tc.getparent().getparent(), doc))
     # 单张：直接在单元格里加一段居中大图，不套 2 列表格(否则只能占半宽)
     if len(imgs) == 1:
         im = imgs[0]
-        p = tc.add_paragraph()
+        p = tcell.add_paragraph()
         p.alignment = 1  # center
         run = p.add_run()
         try:
@@ -362,13 +365,12 @@ def _append_cond_images(tc, doc, imgs):
             run.add_picture(im["path"], width=w, height=h)
         cap = im.get("caption", "")
         if cap:
-            cp = tc.add_paragraph(cap)
+            cp = tcell.add_paragraph(cap)
             cp.alignment = 1
             for rr in cp.runs:
                 E.force_song5(rr._r)
         return
-    from docx.table import Table, _Cell
-    cell = _Cell(tc, Table(tc.getparent().getparent(), doc))
+    cell = tcell
     nrows = (len(imgs) + 1) // 2
     nested = cell.add_table(rows=nrows, cols=2)
     try:
