@@ -125,13 +125,10 @@ def _fill_table(tbl_el, info, test, doc):
     _cond_imgs = test.get("condition_images", [])
     c = cells(7); _set(c[1], _cond_text); _vcenter(c[1])
     _append_cond_images(c[1], doc, _cond_imgs)
-    # 是否需要分页+撑高：有配图时必分(配图要独占版面)；纯文字时——即使试验条件
-    # 比默认行高长，只要整张表用自然行高仍能一页放下，就不分页，避免内容不多也硬撑成两页。
-    if _cond_imgs:
-        _need_split = True
-    else:
-        _need_split = _condition_is_long(_cond_text, _DEFAULT_ROW_HEIGHTS.get(7)) \
-            and not _table_fits_one_page(doc, rows, _cond_text)
+    # 是否需要分页+撑高：不管有没有配图，都按「整张表用自然行高能否一页放下」判断——
+    # R7 自然高度 = 文字高度 + 配图块高度。放得下就不分页(如宽而矮的表格截图)，
+    # 放不下才分页撑高，避免内容不多也硬撑成两页。
+    _need_split = not _table_fits_one_page(doc, rows, _cond_text, _cond_imgs)
     # 分页模式下撑高 R7，填满第一页
     if _need_split:
         h7 = _page1_r7_height(doc, rows)
@@ -253,10 +250,51 @@ def _condition_is_long(text, r7_default=None):
     return needed > r7_default
 
 
-def _natural_r7_height(text):
-    """试验条件按内容估算的「自然」行高(twips)：够放下全部文字，
+_CM_TWIPS = 567          # 1cm ≈ 567 twips
+_COND_CAP_TWIPS = 240    # 每张图注约占高度(小五一行)
+
+
+def _cond_images_block_twips(imgs):
+    """估算试验条件配图整块的渲染高度(twips)，与 _append_cond_images 的布局一致：
+    - 1 张：居中大图，按朝向缩放到 13.5×15.5cm 框内的实际高度。
+    - 多张：每行 2 张，行高取该行两图缩放到 8.0×9.0cm 框内的较大高度之和。
+    图注各加一行。取不到真实尺寸时按框上限保守估算。"""
+    if not imgs:
+        return 0
+    def disp_h_cm(im, wmax, hmax):
+        try:
+            _, size = E.normalize_image(im["path"], im.get("rotate", 0))
+            w, h = size
+            if w >= h:
+                tw = wmax; th = tw * h / w
+                if th > hmax:
+                    th = hmax
+            else:
+                th = hmax
+            return th
+        except Exception:
+            return hmax
+    total = 0
+    if len(imgs) == 1:
+        th = disp_h_cm(imgs[0], _COND_IMG_1_W_CM, _COND_IMG_1_H_CM)
+        total += int(th * _CM_TWIPS)
+        if imgs[0].get("caption"):
+            total += _COND_CAP_TWIPS
+    else:
+        for r in range(0, len(imgs), 2):
+            rowimgs = imgs[r:r + 2]
+            rh = max(disp_h_cm(im, _COND_IMG_N_W_CM, _COND_IMG_N_H_CM) for im in rowimgs)
+            total += int(rh * _CM_TWIPS)
+            if any(im.get("caption") for im in rowimgs):
+                total += _COND_CAP_TWIPS
+    return total
+
+
+def _natural_r7_height(text, imgs=None):
+    """试验条件按内容估算的「自然」行高(twips)：够放下全部文字(+配图块)，
     但不低于模板默认行高。用于判断整表能否一页放下。"""
     needed = _visual_line_count(text) * _COND_LINE_TWIPS + _COND_CELL_PAD_TWIPS
+    needed += _cond_images_block_twips(imgs or [])
     return max(needed, _DEFAULT_ROW_HEIGHTS.get(7, 2283))
 
 
@@ -265,13 +303,14 @@ def _natural_r7_height(text):
 # 与 _HEADER_PARA_TWIPS(分页布局里宁可高估以防溢出)取向相反，故单列一个常量。
 _HEADER_FIT_TWIPS = 800
 
-def _table_fits_one_page(doc, rows, cond_text):
+def _table_fits_one_page(doc, rows, cond_text, cond_imgs=None):
     """不分页、不撑高的前提下，用自然行高估算整张 15 行表能否放进一页。
-    R7(试验条件)用内容估算的自然高度，其余行用模板/现有行高。
-    只有放不下时才需要分页(见 _need_split)，避免内容不多也硬分成两页。"""
+    R7(试验条件)用内容(文字+配图)估算的自然高度，其余行用模板/现有行高。
+    只有放不下时才需要分页(见 _need_split)，避免内容不多也硬分成两页——
+    如宽而矮的表格截图，加进来后整表仍能一页放下就不分页。"""
     usable = _usable_text_height(doc)
     others = _rows_height_sum(rows, [i for i in range(len(rows)) if i != 7])
-    r7 = _natural_r7_height(cond_text)
+    r7 = _natural_r7_height(cond_text, cond_imgs)
     return _HEADER_FIT_TWIPS + others + r7 <= usable
 
 
