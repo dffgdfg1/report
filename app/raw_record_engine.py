@@ -310,10 +310,62 @@ def _page_break_before_cell(tc):
         ppr.insert(0, ppr.makeelement(qn('w:pageBreakBefore'), {}))
 
 
+# 试验条件配图的尺寸：R7 单元格跨3列(约14.8cm宽)，分页模式下 R7 还被撑高占满整页，
+# 纵向空间充裕。故配图可比主报告(半列宽)放得大很多，尤其只有 1 张时应放大居中。
+_COND_IMG_1_W_CM = 13.5   # 只有 1 张：宽度上限(横图铺到接近整个单元格宽)
+_COND_IMG_1_H_CM = 15.5   # 只有 1 张：高度上限(竖图/整页留白够用)
+_COND_IMG_N_W_CM = 8.0    # 2 张一排时：每张宽度上限(比主报告的略大)
+_COND_IMG_N_H_CM = 9.0    # 2 张一排时：每张高度上限
+
+
+def _cond_img_size(size, w_max_cm, h_max_cm):
+    """按朝向等比缩放到 w_max×h_max 框内(不变形、不放大超过框)。
+    横图先铺满宽，竖图先撑满高，超出另一边再回压。size 认不出时用 N 档默认。"""
+    from docx.shared import Cm
+    try:
+        w, h = size
+        if w >= h:
+            tw = w_max_cm
+            th = tw * h / w
+            if th > h_max_cm:
+                th = h_max_cm
+                tw = th * w / h
+        else:
+            th = h_max_cm
+            tw = th * w / h
+            if tw > w_max_cm:
+                tw = w_max_cm
+                th = tw * h / w
+        return Cm(tw), Cm(th)
+    except Exception:
+        return Cm(w_max_cm), Cm(h_max_cm)
+
+
 def _append_cond_images(tc, doc, imgs):
-    """在试验条件文字下方追加配图：每行横排 2 张，避免竖排把版面撑乱。
-    在单元格内嵌一张 2 列表格承载图片（无边框、居中）。"""
+    """在试验条件文字下方追加配图：
+    - 只有 1 张：放大居中(单张能占到单元格大部分宽度)，避免小图看不清字。
+    - 多张：每行横排 2 张，比主报告略大，用无边框内嵌表格承载(居中)。"""
     if not imgs:
+        return
+    # 单张：直接在单元格里加一段居中大图，不套 2 列表格(否则只能占半宽)
+    if len(imgs) == 1:
+        im = imgs[0]
+        p = tc.add_paragraph()
+        p.alignment = 1  # center
+        run = p.add_run()
+        try:
+            stream, size = E.normalize_image(im["path"], im.get("rotate", 0))
+            w, h = _cond_img_size(size, _COND_IMG_1_W_CM, _COND_IMG_1_H_CM)
+            run.add_picture(stream, width=w, height=h)
+        except Exception:
+            w, h = _cond_img_size(None, _COND_IMG_1_W_CM, _COND_IMG_1_H_CM)
+            run.add_picture(im["path"], width=w, height=h)
+        cap = im.get("caption", "")
+        if cap:
+            cp = tc.add_paragraph(cap)
+            cp.alignment = 1
+            for rr in cp.runs:
+                E.force_song5(rr._r)
         return
     from docx.table import Table, _Cell
     cell = _Cell(tc, Table(tc.getparent().getparent(), doc))
@@ -332,10 +384,10 @@ def _append_cond_images(tc, doc, imgs):
         run = p.add_run()
         try:
             stream, size = E.normalize_image(im["path"], im.get("rotate", 0))
-            w, h = E._target_size(size)
+            w, h = _cond_img_size(size, _COND_IMG_N_W_CM, _COND_IMG_N_H_CM)
             run.add_picture(stream, width=w, height=h)
         except Exception:
-            w, h = E._target_size(None)
+            w, h = _cond_img_size(None, _COND_IMG_N_W_CM, _COND_IMG_N_H_CM)
             run.add_picture(im["path"], width=w, height=h)
         cap = im.get("caption", "")
         if cap:
