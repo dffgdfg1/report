@@ -331,7 +331,7 @@ def _append_cond_images(tc, doc, imgs):
         p.alignment = 1  # center
         run = p.add_run()
         try:
-            stream, size = E.normalize_image(im["path"])
+            stream, size = E.normalize_image(im["path"], im.get("rotate", 0))
             w, h = E._target_size(size)
             run.add_picture(stream, width=w, height=h)
         except Exception:

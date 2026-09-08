@@ -92,6 +92,10 @@ table.rows td { vertical-align: top; }
 .thumb .cap { width: 100%; border: none; border-top: 1px solid #eee; padding: 4px 5px; font-size: 11px; }
 .thumb .x { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,.55); color: #fff; border-radius: 50%;
   width: 20px; height: 20px; line-height: 20px; text-align: center; font-size: 13px; cursor: pointer; }
+.thumb .rot { position: absolute; top: 2px; left: 2px; background: rgba(0,0,0,.55); color: #fff; border-radius: 50%;
+  width: 20px; height: 20px; line-height: 20px; text-align: center; font-size: 13px; cursor: pointer; z-index: 2; }
+.thumb .rot:hover { background: rgba(31,111,235,.9); }
+.thumb .imgbox img { transition: transform .18s ease; }
 .thumb .badge48 { position: absolute; bottom: 26px; left: 2px; background: rgba(31,111,235,.85); color: #fff; font-size: 10px; padding: 1px 4px; border-radius: 3px; }
 /* 缩略图拖动排序：只有图片区(imgbox)是拖动手柄，图注框可正常划词复制 */
 .thumb .imgbox { cursor: grab; }

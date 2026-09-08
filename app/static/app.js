@@ -906,8 +906,9 @@ function renderConditionImages(t) {
     const ib = el("div", "imgbox");
     const src = imageUrl(im.file);
     const img = el("img"); img.src = src; img.loading = "lazy";
-    ib.title = "点击放大查看"; ib.onclick = () => openLightbox(src);
+    ib.title = "点击放大查看"; ib.onclick = () => openLightbox(src, im.rotate);
     ib.appendChild(img); th2.appendChild(ib);
+    addRotateBtn(th2, img, im);
     const cap = el("input", "cap"); cap.placeholder = "图注（可选）"; cap.value = im.caption || "";
     cap.oninput = () => { im.caption = cap.value; scheduleSave(); };
     enableSubSupPaste(cap, (v) => { im.caption = v; scheduleSave(); });
@@ -968,8 +969,9 @@ function renderImageGroup(t, g, gi) {
     const ib = el("div", "imgbox");
     const src = imageUrl(im.file);
     const img = el("img"); img.src = src; img.loading = "lazy";
-    ib.title = "点击放大查看"; ib.onclick = () => openLightbox(src);
+    ib.title = "点击放大查看"; ib.onclick = () => openLightbox(src, im.rotate);
     ib.appendChild(img); th2.appendChild(ib);
+    addRotateBtn(th2, img, im);
     const cap = el("input", "cap"); cap.placeholder = "图注（可选）"; cap.value = im.caption || "";
     cap.oninput = () => { im.caption = cap.value; scheduleSave(); };
     enableSubSupPaste(cap, (v) => { im.caption = v; scheduleSave(); });
@@ -984,9 +986,30 @@ function renderImageGroup(t, g, gi) {
   return box;
 }
 // 点击缩略图 → 全屏查看原图
-function openLightbox(src) {
+// 给缩略图挂「旋转90°」按钮：只存角度(im.rotate)，预览用 CSS transform，导出时后端才真旋转。
+// applyPreview 把当前角度画到缩略图上；点按钮顺时针 +90 循环 0→90→180→270。
+function addRotateBtn(th2, img, im, onChange) {
+  const applyPreview = () => {
+    const deg = ((im.rotate || 0) % 360 + 360) % 360;
+    img.style.transform = deg ? `rotate(${deg}deg)` : "";
+  };
+  applyPreview();
+  const r = el("span", "rot", "⟳"); r.title = "顺时针旋转90°";
+  r.onclick = (e) => {
+    e.stopPropagation();   // 别触发放大
+    im.rotate = (((im.rotate || 0) + 90) % 360);
+    applyPreview();
+    scheduleSave();
+    if (onChange) onChange();
+  };
+  th2.appendChild(r);
+}
+
+function openLightbox(src, rotate) {
   const lb = el("div", "lightbox");
   const big = el("img"); big.src = src;
+  const deg = (((rotate || 0) % 360) + 360) % 360;
+  if (deg) big.style.transform = `rotate(${deg}deg)`;
   const close = el("span", "lb-close", "×");
   lb.appendChild(big); lb.appendChild(close);
   lb.onclick = () => document.body.removeChild(lb);

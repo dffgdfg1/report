@@ -226,9 +226,10 @@ from PIL import Image as _PILImage, ImageOps as _ImageOps
 # 重编码质量（1-95）。高质量、几乎无损；同时清掉手机照片的问题EXIF并修正旋转。
 JPEG_QUALITY = 92
 
-def normalize_image(img_path):
+def normalize_image(img_path, rotate=0):
     """用 Pillow 规范化图片，返回 (BytesIO, (w,h))。
     - 修正手机 EXIF 旋转方向
+    - 按 rotate(0/90/180/270 顺时针)手动旋转，用户在前端点旋转按钮所存的角度
     - 清除非标准 EXIF（否则 python-docx 读 DPI 会崩：str __round__）
     - 统一转 RGB JPEG
     """
@@ -237,6 +238,13 @@ def normalize_image(img_path):
         im = _ImageOps.exif_transpose(im)   # 按 EXIF 摆正方向
     except Exception:
         pass
+    # 用户手动旋转：PIL.rotate 为逆时针，取负实现顺时针；expand 让画布跟着转大小
+    try:
+        deg = int(rotate) % 360
+    except Exception:
+        deg = 0
+    if deg:
+        im = im.rotate(-deg, expand=True)
     if im.mode not in ("RGB", "L"):
         im = im.convert("RGB")
     size = im.size
@@ -297,17 +305,18 @@ def _slashfill_caption(caption):
             return base_text + ' ' + '/' * fill_count
     return caption
 
-def put_picture(tc, doc, img_path, caption=""):
+def put_picture(tc, doc, img_path, caption="", rotate=0):
     """在单元格 tc 内放入图片，居中。tc 需已在 doc 内。
     注意：图注不再嵌在本单元格内，改由独立的图注行承载(见 rebuild_image_table)。
-    caption 参数保留仅为向后兼容；若传入则仍在图下附一段(旧行为)。"""
+    caption 参数保留仅为向后兼容；若传入则仍在图下附一段(旧行为)。
+    rotate 为用户手动旋转角度(0/90/180/270 顺时针)。"""
     cell = _Cell(tc, Table(tc.getparent().getparent(), doc))
     # 用单元格首段承载图片，居中
     p = cell.paragraphs[0]
     p.alignment = 1  # center
     run = p.add_run()
     try:
-        stream, size = normalize_image(img_path)
+        stream, size = normalize_image(img_path, rotate)
         w, h = _target_size(size)
         run.add_picture(stream, width=w, height=h)
     except Exception:
@@ -411,7 +420,7 @@ def rebuild_image_table(tbl_el, groups, doc, item_no=1):
                     img = imgs[i + j]
                     seq += 1
                     caps[j] = _format_caption(item_no, seq, img.get("caption", ""))
-                    put_picture(cells[j], doc, img["path"])   # 图注独立成行，不塞进图片格
+                    put_picture(cells[j], doc, img["path"], rotate=img.get("rotate", 0))   # 图注独立成行，不塞进图片格
                 else:
                     # 空单元格用斜杠占位(水平/垂直居中)，避免留白显得缺图
                     set_tc_text(cells[j], "/", align="center")
@@ -538,7 +547,7 @@ def append_pictures_to_cell(tc, doc, imgs):
         p.alignment = 1  # center
         run = p.add_run()
         try:
-            stream, size = normalize_image(im["path"])
+            stream, size = normalize_image(im["path"], im.get("rotate", 0))
             w, h = _target_size(size)
             run.add_picture(stream, width=w, height=h)
         except Exception:

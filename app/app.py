@@ -1105,7 +1105,7 @@ def api_generate():
                 for im in g.get("images", []):
                     fp = os.path.join(imgdir, im.get("file", ""))
                     if os.path.exists(fp):
-                        imgs.append({"path": fp, "caption": im.get("caption", "")})
+                        imgs.append({"path": fp, "caption": im.get("caption", ""), "rotate": im.get("rotate", 0)})
                 groups.append({"title": g.get("title", ""), "images": imgs})
             tt["image_groups"] = groups
             # 试验条件配图
@@ -1113,7 +1113,7 @@ def api_generate():
             for im in t.get("condition_images", []):
                 fp = os.path.join(imgdir, im.get("file", ""))
                 if os.path.exists(fp):
-                    cimgs.append({"path": fp, "caption": im.get("caption", "")})
+                    cimgs.append({"path": fp, "caption": im.get("caption", ""), "rotate": im.get("rotate", 0)})
             tt["condition_images"] = cimgs
             proj["tests"].append(tt)
         out = os.path.join(OUT_DIR, safe_name(name) + ".docx")
@@ -1151,7 +1151,7 @@ def api_generate_raw():
             for im in t.get("condition_images", []):
                 fp = os.path.join(imgdir, im.get("file", ""))
                 if os.path.exists(fp):
-                    cimgs.append({"path": fp, "caption": im.get("caption", "")})
+                    cimgs.append({"path": fp, "caption": im.get("caption", ""), "rotate": im.get("rotate", 0)})
             tt["condition_images"] = cimgs
             proj["tests"].append(tt)
         out = os.path.join(OUT_DIR, safe_name(name) + "_原始记录.docx")
@@ -1194,7 +1194,7 @@ def api_generate_plan():
             for im in t.get("condition_images", []):
                 fp = os.path.join(imgdir, im.get("file", ""))
                 if os.path.exists(fp):
-                    cimgs.append({"path": fp, "caption": im.get("caption", "")})
+                    cimgs.append({"path": fp, "caption": im.get("caption", ""), "rotate": im.get("rotate", 0)})
             tt["condition_images"] = cimgs
             proj["tests"].append(tt)
         out = os.path.join(OUT_DIR, safe_name(name) + "_试验计划.xlsx")
