@@ -451,6 +451,7 @@ function standardField(t) {
 function renderTest(t, idx) {
   const card = el("div", "card test-card");
   card.setAttribute("data-idx", idx);
+  if (t._collapsed) card.classList.add("collapsed");   // 折叠态存在测试项上，重渲染/排序后保持
   const head = el("div", "head");
   // 拖动手柄：按住它可上下拖动整个测试项调整顺序
   const grip = el("span", "drag-grip", "⠿"); grip.title = "按住拖动调整顺序"; grip.setAttribute("draggable", "true");
@@ -458,11 +459,11 @@ function renderTest(t, idx) {
   const titleSpan = el("span"); titleSpan.innerHTML = `测试项目 ${idx + 1}：<b>${t.title || "未命名"}</b>`;
   head.appendChild(titleSpan);
   head.setAttribute("data-toggle", "");
-  // 在本项后插入一个空白测试项（中途补漏用）
+  // 在本项前插入一个空白测试项（中途补漏用）
   const ins = el("button", "btn-mini", "＋插入项目");
-  ins.title = "在本项后面插入一个新测试项目";
+  ins.title = "在本项前面插入一个新测试项目";
   ins.style.marginLeft = "auto";
-  ins.onclick = (e) => { e.stopPropagation(); insertTestAfter(idx); };
+  ins.onclick = (e) => { e.stopPropagation(); insertTestBefore(idx); };
   head.appendChild(ins);
   const saveScheme = el("button", "btn-mini", "保存为方案");
   saveScheme.style.marginLeft = "6px";
@@ -1538,15 +1539,17 @@ function addTest() {
   scheduleSave();
 }
 
-// 在第 idx 项后面插入一个空白测试项，方便中途补漏而不必逐个删除重排
-function insertTestAfter(idx) {
-  state.tests.splice(idx + 1, 0, blankTest());
+// 在第 idx 项前面插入一个空白测试项，方便中途补漏而不必逐个删除重排
+function insertTestBefore(idx) {
+  const t = blankTest();
+  t._collapsed = false;              // 新插入的项默认展开，方便立即填写
+  state.tests.splice(idx, 0, t);
   renderTests();
   scheduleSave();
-  // 滚动到新插入的卡片并展开，方便用户立即填写（展开=去掉 collapsed 类，见 bindToggles）
+  // 滚动到新插入的卡片（就在原 idx 位置）
   const list = $("#testList");
-  const card = list.children[idx + 1];
-  if (card) { card.classList.remove("collapsed"); card.scrollIntoView({ behavior: "smooth", block: "center" }); }
+  const card = list.children[idx];
+  if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 // 把测试项从 from 移到 to（拖动排序用），越界/同位不动
@@ -1561,8 +1564,22 @@ function moveTest(from, to) {
 function bindToggles() {
   document.addEventListener("click", (e) => {
     const h = e.target.closest("[data-toggle]");
-    if (h && !e.target.closest("button")) h.parentElement.classList.toggle("collapsed");
+    if (h && !e.target.closest("button")) {
+      const card = h.parentElement;
+      card.classList.toggle("collapsed");
+      // 测试卡片：把折叠态写回测试项，重渲染/拖动排序后保持不变
+      const idx = card.getAttribute && card.getAttribute("data-idx");
+      if (idx != null && state.tests[+idx]) state.tests[+idx]._collapsed = card.classList.contains("collapsed");
+    }
   });
+}
+
+// 一键收起/展开全部测试项：若有任意展开的就全部收起，否则全部展开
+function toggleCollapseAllTests() {
+  const anyOpen = state.tests.some(t => !t._collapsed);
+  state.tests.forEach(t => { t._collapsed = anyOpen; });
+  renderTests();
+  scheduleSave();
 }
 
 // ============ 标准库管理面板（增删改查 + 导入/模板/清空） ============
@@ -2034,6 +2051,7 @@ async function init() {
   $("#btnNew").onclick = newProject;
   $("#btnOpen").onclick = openDialog;
   $("#btnAddTest").onclick = addTest;
+  { const b = $("#btnCollapseAll"); if (b) b.onclick = toggleCollapseAllTests; }
   bindToggles();
   bindPasteImages();
   bindUndoRedo();
