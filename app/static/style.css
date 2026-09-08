@@ -75,6 +75,11 @@ table.rows textarea { width: 100%; box-sizing: border-box; border: none; padding
 table.rows textarea:focus { outline: 1px solid #9bf; background: #fff; }
 table.rows td { vertical-align: top; }
 .test-card { border-left: 4px solid #1f6feb; }
+/* 测试项拖动排序：手柄 + 拖动/放置态 */
+.test-card .drag-grip { cursor: grab; color: #aab; font-size: 18px; line-height: 1; user-select: none; padding: 0 2px; }
+.test-card .drag-grip:active { cursor: grabbing; }
+.test-card.card-dragging { opacity: .45; }
+.test-card.card-drop-over { outline: 2px dashed #1f6feb; outline-offset: 2px; }
 .imggroup { border: 1px solid #eee; border-radius: 6px; padding: 10px; margin: 8px 0; background: #fafbff; }
 .imggroup .gtitle { font-weight: 600; font-size: 13px; margin-bottom: 8px; color: #456; }
 .dropzone { border: 2px dashed #b8c4e0; border-radius: 8px; padding: 34px 16px; text-align: center; color: #889;

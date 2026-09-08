@@ -450,11 +450,22 @@ function standardField(t) {
 
 function renderTest(t, idx) {
   const card = el("div", "card test-card");
+  card.setAttribute("data-idx", idx);
   const head = el("div", "head");
-  head.innerHTML = `<span>测试项目 ${idx + 1}：<b>${t.title || "未命名"}</b></span>`;
+  // 拖动手柄：按住它可上下拖动整个测试项调整顺序
+  const grip = el("span", "drag-grip", "⠿"); grip.title = "按住拖动调整顺序"; grip.setAttribute("draggable", "true");
+  head.appendChild(grip);
+  const titleSpan = el("span"); titleSpan.innerHTML = `测试项目 ${idx + 1}：<b>${t.title || "未命名"}</b>`;
+  head.appendChild(titleSpan);
   head.setAttribute("data-toggle", "");
+  // 在本项后插入一个空白测试项（中途补漏用）
+  const ins = el("button", "btn-mini", "＋插入项目");
+  ins.title = "在本项后面插入一个新测试项目";
+  ins.style.marginLeft = "auto";
+  ins.onclick = (e) => { e.stopPropagation(); insertTestAfter(idx); };
+  head.appendChild(ins);
   const saveScheme = el("button", "btn-mini", "保存为方案");
-  saveScheme.style.marginLeft = "auto";
+  saveScheme.style.marginLeft = "6px";
   saveScheme.onclick = (e) => { e.stopPropagation(); saveTestScheme(t); };
   head.appendChild(saveScheme);
   const del = el("button", "btn-del btn-mini", "删除");
@@ -462,6 +473,7 @@ function renderTest(t, idx) {
   del.onclick = (e) => { e.stopPropagation(); if (confirm("删除该测试项目？")) { state.tests.splice(idx, 1); renderTests(); scheduleSave(); } };
   head.appendChild(del);
   card.appendChild(head);
+  enableTestDrag(card, grip, idx);
 
   const body = el("div", "body");
 
@@ -844,6 +856,38 @@ function renderSamples(t) {
 function rerenderTest(t) {
   const idx = state.tests.indexOf(t);
   if (idx >= 0) renderTest_replace(idx);
+}
+
+// 让测试项卡片可拖动排序：按住卡头的拖动手柄(grip)拖起整张卡，放到另一张卡上
+// 就把它移到那个位置。用 DOM 里 .test-card 的 data-idx 实时算 from/to，
+// 避免闭包里的 idx 因 splice/重渲染而失效。
+function enableTestDrag(card, grip, idx) {
+  grip.addEventListener('dragstart', (e) => {
+    card.classList.add('card-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', String(idx)); } catch (err) {}
+  });
+  grip.addEventListener('dragend', () => card.classList.remove('card-dragging'));
+  card.addEventListener('dragover', (e) => {
+    const list = card.parentNode;
+    const dragging = list && list.querySelector('.test-card.card-dragging');
+    if (!dragging) return;      // 不是在拖卡片，不拦截
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragging !== card) card.classList.add('card-drop-over');
+  });
+  card.addEventListener('dragleave', () => card.classList.remove('card-drop-over'));
+  card.addEventListener('drop', (e) => {
+    const list = card.parentNode;
+    const dragging = list && list.querySelector('.test-card.card-dragging');
+    if (!dragging) return;
+    e.preventDefault();
+    card.classList.remove('card-drop-over');
+    if (dragging === card) return;
+    const from = parseInt(dragging.getAttribute('data-idx'), 10);
+    const to = parseInt(card.getAttribute('data-idx'), 10);
+    moveTest(from, to);
+  });
 }
 // ============ 渲染：试验条件配图 ============
 // 让缩略图可拖动排序：拖起一张图，放到另一张上就把它插到那个位置。
@@ -1478,13 +1522,38 @@ async function generatePlan() {
   finally { $("#btnGenPlan").disabled = false; }
 }
 // ============ 初始化 ============
-function addTest() {
+// 造一个空白测试项（新增/插入共用），保证字段结构一致
+function blankTest() {
   const t = { title: "", sample_no: "", standard: "", start_date: "", end_date: "", overall_result: "合格",
     sample_name: state.info.sample_name || "", env: "18℃-28℃、25%RH-75%RH", test_date: "", condition: "", requirement: "",
     equipment: [], samples: [{ no: "1#", result: DEFAULT_SAMPLE_RESULT, conclusion: "合格" }],
     image_groups: [{ title: "试验前图片", images: [] }, { title: "试验中图片", images: [] }, { title: "试验后图片", images: [] }] };
   if (META.types.length) applyPreset(t, META.types[0]);
-  state.tests.push(t);
+  return t;
+}
+
+function addTest() {
+  state.tests.push(blankTest());
+  renderTests();
+  scheduleSave();
+}
+
+// 在第 idx 项后面插入一个空白测试项，方便中途补漏而不必逐个删除重排
+function insertTestAfter(idx) {
+  state.tests.splice(idx + 1, 0, blankTest());
+  renderTests();
+  scheduleSave();
+  // 滚动到新插入的卡片并展开，方便用户立即填写（展开=去掉 collapsed 类，见 bindToggles）
+  const list = $("#testList");
+  const card = list.children[idx + 1];
+  if (card) { card.classList.remove("collapsed"); card.scrollIntoView({ behavior: "smooth", block: "center" }); }
+}
+
+// 把测试项从 from 移到 to（拖动排序用），越界/同位不动
+function moveTest(from, to) {
+  if (from === to || from < 0 || to < 0 || from >= state.tests.length || to >= state.tests.length) return;
+  const [moved] = state.tests.splice(from, 1);
+  state.tests.splice(to, 0, moved);
   renderTests();
   scheduleSave();
 }
