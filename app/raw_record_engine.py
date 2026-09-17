@@ -15,11 +15,14 @@ from docx.oxml.ns import qn
 
 # 复用主报告引擎的低层助手，保证字体/换行处理一致（宋体五号、\r\n 归一等）
 import report_engine as E
+from docxcompose.composer import Composer
 
 W = E.W
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKELETON = os.path.join(BASE, "模板库", "原始记录骨架.docx")
+# 每张原始记录末尾另起一页追加的「试验过程点检记录」附页
+CHECKLIST = os.path.join(BASE, "模板库", "试验过程点检记录.docx")
 
 
 def _row_cells(row_el):
@@ -533,6 +536,7 @@ def generate_raw_records(project, out_path):
 
         file_path = os.path.join(out_dir, file_name)
         os.makedirs(out_dir, exist_ok=True)
+        _append_checklist(doc)
         doc.save(file_path)
         generated_files.append(file_path)
 
@@ -554,6 +558,22 @@ def _normalize_font_size(doc):
             e = rpr.find(W + tag)
             if e is not None and e.get(qn('w:val')) == '21':
                 e.set(qn('w:val'), '18')
+
+
+def _append_checklist(doc):
+    """在原始记录末尾另起一页追加「试验过程点检记录」附页。
+    附页模板缺失时静默跳过，不影响原始记录生成。"""
+    if not os.path.exists(CHECKLIST):
+        return
+    # 在正文 sectPr 之前插入分页符，使附页从新一页开始
+    body = doc.element.body
+    sectPr = body.find(qn('w:sectPr'))
+    pb = _make_page_break(doc)
+    if sectPr is not None:
+        sectPr.addprevious(pb)
+    else:
+        body.append(pb)
+    Composer(doc).append(Document(CHECKLIST))
 
 
 def _make_page_break(doc):
