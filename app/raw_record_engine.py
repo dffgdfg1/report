@@ -536,7 +536,7 @@ def generate_raw_records(project, out_path):
 
         file_path = os.path.join(out_dir, file_name)
         os.makedirs(out_dir, exist_ok=True)
-        _append_checklist(doc)
+        _append_checklist(doc, info.get("commission_no", ""))
         doc.save(file_path)
         generated_files.append(file_path)
 
@@ -560,8 +560,9 @@ def _normalize_font_size(doc):
                 e.set(qn('w:val'), '18')
 
 
-def _append_checklist(doc):
+def _append_checklist(doc, commission_no=""):
     """在原始记录末尾另起一页追加「试验过程点检记录」附页。
+    附页左上角「编号：」同步成与原始记录一致的 SY 编号。
     附页模板缺失时静默跳过，不影响原始记录生成。"""
     if not os.path.exists(CHECKLIST):
         return
@@ -573,7 +574,9 @@ def _append_checklist(doc):
         sectPr.addprevious(pb)
     else:
         body.append(pb)
-    Composer(doc).append(Document(CHECKLIST))
+    cdoc = Document(CHECKLIST)
+    _fill_record_no(cdoc, commission_no)  # 附页编号与原始记录保持一致
+    Composer(doc).append(cdoc)
 
 
 def _make_page_break(doc):
