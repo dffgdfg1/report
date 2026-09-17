@@ -524,15 +524,16 @@ def generate_raw_records(project, out_path):
         _fill_table(tbl, info, test, doc)
         _normalize_font_size(doc)  # 全文五号(sz21) 统一压回小五(sz18)
 
-        # 文件命名：基础名_测试项目名.docx 或 基础名_序号.docx
+        # 文件命名：测试项目名放最前面(项目一多也能一眼看出是什么测试)，其后接基础名。
+        # 无测试项目名时回退为 序号_基础名。
         test_title = test.get("title", "").strip()
         if test_title:
             # 清理文件名非法字符
             safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_', '（', '）', '(', ')') else '_'
                                 for c in test_title)
-            file_name = f"{base_name}_{safe_title}.docx"
+            file_name = f"{safe_title}_{base_name}.docx"
         else:
-            file_name = f"{base_name}_{idx+1}.docx"
+            file_name = f"{idx+1}_{base_name}.docx"
 
         file_path = os.path.join(out_dir, file_name)
         os.makedirs(out_dir, exist_ok=True)
