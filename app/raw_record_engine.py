@@ -566,16 +566,18 @@ def _append_checklist(doc, commission_no=""):
     附页模板缺失时静默跳过，不影响原始记录生成。"""
     if not os.path.exists(CHECKLIST):
         return
-    # 在正文 sectPr 之前插入分页符，使附页从新一页开始
-    body = doc.element.body
-    sectPr = body.find(qn('w:sectPr'))
-    pb = _make_page_break(doc)
-    if sectPr is not None:
-        sectPr.addprevious(pb)
-    else:
-        body.append(pb)
     cdoc = Document(CHECKLIST)
     _fill_record_no(cdoc, commission_no)  # 附页编号与原始记录保持一致
+    # 让附页从新一页开始：给附页首段加 pageBreakBefore，
+    # 不另插空段(插空段会在附页顶端多出一行空白)
+    if cdoc.paragraphs:
+        p0 = cdoc.paragraphs[0]._p
+        ppr = p0.find(qn('w:pPr'))
+        if ppr is None:
+            ppr = p0.makeelement(qn('w:pPr'), {})
+            p0.insert(0, ppr)
+        if ppr.find(qn('w:pageBreakBefore')) is None:
+            ppr.insert(0, ppr.makeelement(qn('w:pageBreakBefore'), {}))
     Composer(doc).append(cdoc)
 
 
