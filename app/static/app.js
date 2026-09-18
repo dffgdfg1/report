@@ -150,6 +150,20 @@ const INFO_FIELDS = [
   ["remark", "备注", "text"],
 ];
 
+// 把「检测项目/检测依据」规范成「参考《内容》」：先剥掉已有的“参考”前缀和内外书名号，再统一包起来
+function normalizeReference(v) {
+  let s = (v || "").trim();
+  if (!s) return "";
+  s = s.replace(/^参考\s*/, "");          // 去掉开头的“参考”
+  s = s.replace(/^[《<]+|[》>]+$/g, "");   // 去掉首尾书名号（含误输入的半角尖括号）
+  s = s.trim();
+  if (!s) return "";
+  return `参考《${s}》`;
+}
+
+// 需要在失焦时规范成「参考《…》」的字段
+const REFERENCE_FIELDS = new Set(["test_items", "test_basis"]);
+
 // ============ 渲染：报告信息 ============
 function renderInfo() {
   const body = $("#infoBody");
@@ -168,6 +182,13 @@ function renderInfo() {
       if (key === "commission_no" || key === "sample_model") autoName();
       scheduleSave();
     };
+    // 检测项目/检测依据：离开输入框时规范成「参考《…》」，输入过程中不打扰
+    if (REFERENCE_FIELDS.has(key)) {
+      inp.onblur = () => {
+        const norm = normalizeReference(inp.value);
+        if (norm !== inp.value) { inp.value = norm; state.info[key] = norm; scheduleSave(); }
+      };
+    }
     f.appendChild(inp);
     grid.appendChild(f);
   });
@@ -441,8 +462,14 @@ function standardField(t) {
   inp.oninput = () => { t.standard = inp.value; scheduleSave(); };
   enableSubSupPaste(inp, (v) => { t.standard = v; scheduleSave(); });
   const btn = el("button", "btn-mini", "参考客户大纲");
-  btn.title = "点击填入“参考客户大纲”";
-  btn.onclick = () => { t.standard = "参考客户大纲"; inp.value = t.standard; scheduleSave(); };
+  btn.title = "点击填入“参考《首页检测依据》”（取自导入申请单的检测依据）";
+  btn.onclick = () => {
+    // 用首页“检测依据”（申请单导入的内容）包成「参考《…》」；没填就退回旧文案
+    const norm = normalizeReference(state.info.test_basis);
+    t.standard = norm || "参考客户大纲";
+    inp.value = t.standard;
+    scheduleSave();
+  };
   row.appendChild(inp); row.appendChild(btn);
   f.appendChild(row);
   return f;
