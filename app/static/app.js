@@ -100,8 +100,8 @@ const DEFAULT_INFO = {
   maker_addr: "深圳市福田区沙头街道上沙社区滨河大道9285号中洲滨海商业中心二期1栋A座二十五层",
   sample_way: "客户送样",
   lab_name: "深圳佑驾创新科技股份有限公司实验中心",
-  test_items: "参考客户要求",
-  test_basis: "参考客户要求",
+  test_items: "参考《客户要求》",
+  test_basis: "参考《客户要求》",
 };
 
 // 报告编号为空时，向后端要“今天的下一个编号”并填入
@@ -464,9 +464,9 @@ function standardField(t) {
   const btn = el("button", "btn-mini", "参考客户大纲");
   btn.title = "点击填入“参考《首页检测依据》”（取自导入申请单的检测依据）";
   btn.onclick = () => {
-    // 用首页“检测依据”（申请单导入的内容）包成「参考《…》」；没填就退回旧文案
+    // 用首页“检测依据”（申请单导入的内容）包成「参考《…》」；没填就退回默认
     const norm = normalizeReference(state.info.test_basis);
-    t.standard = norm || "参考客户大纲";
+    t.standard = norm || "参考《客户要求》";
     inp.value = t.standard;
     scheduleSave();
   };
@@ -2039,16 +2039,29 @@ function bindImportForm() {
       const j = await readJSON(await fetch("/api/import_form", { method: "POST", body: fd }));
       if (!j.ok) { alert("导入失败：" + (j.error || "")); status("导入失败"); return; }
       const fields = j.fields || {};
-      // 预览将回填的字段，让用户确认（会覆盖已填的同名字段）
-      const preview = Object.keys(fields).map(k => `· ${FORM_FIELD_LABELS[k] || k}：${fields[k]}`).join("\n");
-      if (!confirm(`识别到以下信息，将填入首页（覆盖同名已填内容）：\n\n${preview}\n\n确定填入？`)) { status("已取消"); return; }
       // 检测项目/检测依据：导入时顺手规范成「参考《…》」
       REFERENCE_FIELDS.forEach(k => { if (fields[k] != null) fields[k] = normalizeReference(fields[k]); });
-      Object.assign(state.info, fields);
+      // 只替换“差异”：新值非空、且和现有值不同的字段才更新；空值不覆盖已填内容，重复导入不会冲掉旧数据
+      const changed = {};
+      Object.keys(fields).forEach(k => {
+        const nv = (fields[k] == null ? "" : String(fields[k])).trim();
+        const cur = (state.info[k] == null ? "" : String(state.info[k])).trim();
+        if (nv && nv !== cur) changed[k] = fields[k];
+      });
+      const keys = Object.keys(changed);
+      if (!keys.length) { alert("和当前首页内容一致，没有需要更新的字段。"); status("无变化，未改动"); return; }
+      // 预览只列真正会变的项（旧 → 新），让用户确认
+      const preview = keys.map(k => {
+        const cur = (state.info[k] == null ? "" : String(state.info[k])).trim();
+        const label = FORM_FIELD_LABELS[k] || k;
+        return cur ? `· ${label}：${cur} → ${changed[k]}` : `· ${label}：（空）→ ${changed[k]}`;
+      }).join("\n");
+      if (!confirm(`将更新以下 ${keys.length} 项（只改有变化的，其余保留）：\n\n${preview}\n\n确定更新？`)) { status("已取消"); return; }
+      Object.assign(state.info, changed);
       autoName();          // 委托单号/样品型号变了，刷新项目名称
       renderInfo();        // 重绘首页
       scheduleSave();
-      status(`已从申请单填入 ${Object.keys(fields).length} 项 ✓`);
+      status(`已更新 ${keys.length} 项 ✓`);
     } catch (e) { alert(e.message); status("导入失败"); }
   };
 }
