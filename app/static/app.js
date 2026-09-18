@@ -2042,6 +2042,8 @@ function bindImportForm() {
       // 预览将回填的字段，让用户确认（会覆盖已填的同名字段）
       const preview = Object.keys(fields).map(k => `· ${FORM_FIELD_LABELS[k] || k}：${fields[k]}`).join("\n");
       if (!confirm(`识别到以下信息，将填入首页（覆盖同名已填内容）：\n\n${preview}\n\n确定填入？`)) { status("已取消"); return; }
+      // 检测项目/检测依据：导入时顺手规范成「参考《…》」
+      REFERENCE_FIELDS.forEach(k => { if (fields[k] != null) fields[k] = normalizeReference(fields[k]); });
       Object.assign(state.info, fields);
       autoName();          // 委托单号/样品型号变了，刷新项目名称
       renderInfo();        // 重绘首页
