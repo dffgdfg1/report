@@ -14,6 +14,10 @@ button:hover { filter: brightness(0.96); }
 .btn-mini { padding: 3px 9px; font-size: 12px; background: #f0f0f4; color: #555; }
 .btn-del { background: #ffe9e9; color: #d33; }
 #status { color: #eaf; font-size: 13px; margin-left: 8px; }
+.online-count { display: inline-flex; align-items: center; gap: 5px; color: #fff; font-size: 13px; white-space: nowrap; }
+.online-count i { width: 7px; height: 7px; border-radius: 50%; background: #58d68d; box-shadow: 0 0 0 2px rgba(88,214,141,.2); }
+.online-count.offline { color: #ffd0d0; }
+.online-count.offline i { background: #ffb4b4; box-shadow: none; }
 /* 同步导出试验汇总的勾选框（在顶部按钮栏） */
 .chk-summary { display: inline-flex; align-items: center; gap: 4px; color: #fff; font-size: 13px; cursor: pointer; user-select: none; margin-right: 2px; }
 .chk-summary input { cursor: pointer; }

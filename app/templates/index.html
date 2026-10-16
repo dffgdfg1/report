@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MINIEYE报告编辑助手</title>
 <link rel="icon" type="image/png" href="/static/logo.png?v=12">
-<link rel="stylesheet" href="/static/style.css?v=38">
+<link rel="stylesheet" href="/static/style.css?v=39">
 </head>
 <body>
 <header>
@@ -20,6 +20,7 @@
   <input type="file" id="stdFile" accept=".xlsx" style="display:none">
   <button class="btn-ghost" id="btnDevMgr">设备库</button>
   <div class="spacer"></div>
+  <span class="online-count" id="onlineCount" title="最近 45 秒内向服务器发送过心跳的浏览器数量"><i></i><span>在线人数：--</span></span>
   <button class="btn-primary" id="btnSave">保存进度</button>
   <label class="chk-summary" title="勾选后，生成试验计划时一并导出「试验汇总」模版(内容手填)"><input type="checkbox" id="chkSummary"> 同步试验汇总</label>
   <button class="btn-go" id="btnGenPlan">生成试验计划</button>
@@ -132,6 +133,6 @@
 <input type="file" id="devFile" accept=".csv" style="display:none">
 
 <div class="toast" id="toast"></div>
-<script src="/static/app.js?v=58"></script>
+<script src="/static/app.js?v=59"></script>
 </body>
 </html>

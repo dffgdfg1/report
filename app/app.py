@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""本地报告生成器 Web 后端。仅监听 127.0.0.1，不联网。"""
-import os, re, json, uuid, glob, webbrowser, threading, sys, subprocess
+"""报告生成器 Web 后端。"""
+import os, re, json, uuid, glob, webbrowser, threading, sys, subprocess, time, sqlite3
 from flask import Flask, request, jsonify, send_file, send_from_directory, abort
 
 def _is_local_request():
@@ -33,6 +33,22 @@ locks.init(os.path.join(BASE, "构建", ".locks"))
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 单次上传上限 200MB
+
+# 在线人数：浏览器每 15 秒上报一次心跳，超过 TTL 没有心跳就视为离线。
+# 使用项目内 SQLite，避免多进程部署时每个 worker 各自统计一份人数。
+PRESENCE_TTL_SECONDS = 45
+PRESENCE_DB = os.path.join(BASE, "构建", "presence.sqlite3")
+
+def _online_count(now=None, client_id=None):
+    now = time.time() if now is None else now
+    cutoff = now - PRESENCE_TTL_SECONDS
+    with sqlite3.connect(PRESENCE_DB, timeout=5) as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS presence (client_id TEXT PRIMARY KEY, last_seen REAL NOT NULL)")
+        if client_id:
+            conn.execute("INSERT OR REPLACE INTO presence (client_id, last_seen) VALUES (?, ?)",
+                         (client_id, now))
+        conn.execute("DELETE FROM presence WHERE last_seen < ?", (cutoff,))
+        return conn.execute("SELECT COUNT(*) FROM presence").fetchone()[0]
 
 # 飞书网页应用免登（未配置时自动关闭，不影响本地/内网使用）
 FEISHU_CFG = feishu_auth.load_config(BASE)
@@ -111,6 +127,15 @@ def _gzip_response(resp):
 @app.route("/api/health")
 def api_health():
     return jsonify({"ok": True})
+
+@app.route("/api/presence", methods=["POST"])
+def api_presence():
+    data = request.get_json(silent=True) or {}
+    client_id = str(data.get("client_id", "")).strip()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,80}", client_id):
+        return jsonify({"ok": False, "error": "无效的在线会话标识"}), 400
+    now = time.time()
+    return jsonify({"ok": True, "online_count": _online_count(now, client_id)})
 
 @app.route("/api/env")
 def api_env():
@@ -1281,6 +1306,7 @@ def api_open_folder():
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 200
 
+HOST = os.environ.get("REPORT_HOST", "127.0.0.1").strip() or "127.0.0.1"
 PORT = 8731
 
 def _open_browser():
@@ -1291,6 +1317,7 @@ if __name__ == "__main__":
     print("=" * 50)
     print("  MINEYE报告编辑助手已启动")
     print("  浏览器地址: http://127.0.0.1:%d/" % PORT)
+    print("  监听地址: %s:%d" % (HOST, PORT))
     print("  ★ 使用期间请勿关闭本窗口 ★")
     print("=" * 50)
-    app.run(host="127.0.0.1", port=PORT, debug=False, threaded=True)
+    app.run(host=HOST, port=PORT, debug=False, threaded=True)

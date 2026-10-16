@@ -25,6 +25,7 @@ __pycache__/
 
 # 跨进程文件锁的空锁文件
 /构建/.locks/
+/构建/presence.sqlite3
 
 # 日志文件
 /构建/错误日志.txt

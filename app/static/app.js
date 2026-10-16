@@ -23,8 +23,55 @@ let STD = {};       // 标准库：{测试项目: {车厂: {standard, condition,
 let DEV = [];       // 设备库：[{name, model, mgmt_no, cal_date, cal_end, ...}]
 let CARMAKERS = []; // 工作模式/功能等级车厂库：ku/*.docx 文件名列表
 let saveTimer = null;
+const PRESENCE_STORAGE_KEY = "mineye_presence_id";
+const PRESENCE_INTERVAL_MS = 15000;
+let presenceTimer = null;
 // 记录最近一次点击/悬停的图片上传区，粘贴截图(Ctrl+V)时图片进这里
 let PASTE_TARGET = null;
+
+function getPresenceId() {
+  let clientId = "";
+  try { clientId = localStorage.getItem(PRESENCE_STORAGE_KEY) || ""; } catch (e) {}
+  if (!/^[A-Za-z0-9_-]{16,80}$/.test(clientId)) {
+    clientId = (window.crypto && typeof window.crypto.randomUUID === "function")
+      ? window.crypto.randomUUID().replace(/-/g, "")
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+    try { localStorage.setItem(PRESENCE_STORAGE_KEY, clientId); } catch (e) {}
+  }
+  return clientId;
+}
+
+function renderPresence(count) {
+  const badge = $("#onlineCount");
+  if (!badge) return;
+  const online = Number.isFinite(count);
+  badge.classList.toggle("offline", !online);
+  const label = $("span", badge);
+  if (label) label.textContent = online ? `在线 ${count} 人` : "在线人数：--";
+}
+
+async function reportPresence() {
+  try {
+    const resp = await fetch("/api/presence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ client_id: getPresenceId() }),
+    });
+    const data = await readJSON(resp);
+    if (!resp.ok || !data.ok) throw new Error(data.error || "在线状态上报失败");
+    renderPresence(Number(data.online_count));
+  } catch (e) {
+    renderPresence(null);
+  }
+}
+
+function startPresence() {
+  if (presenceTimer) return;
+  reportPresence();
+  presenceTimer = setInterval(reportPresence, PRESENCE_INTERVAL_MS);
+  window.addEventListener("pagehide", () => clearInterval(presenceTimer), { once: true });
+}
 
 // ===== 撤销/重做（Ctrl+Z / Ctrl+Y）=====
 let undoStack = [];        // 历史状态快照(JSON字符串)
@@ -2067,6 +2114,7 @@ function bindImportForm() {
 }
 
 async function init() {
+  startPresence();
   // 5 个初始请求互不依赖，并行拉取；比串行快数倍（尤其经隧道时）
   await Promise.all([
     (async () => { try { ENV = await (await fetch("/api/env")).json(); } catch (e) {} })(),
