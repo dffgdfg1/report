@@ -1311,6 +1311,7 @@ def api_open_folder():
 def api_standards_save_test():
     """将测试项目保存为标准：弹窗输入车厂名称，将标准号、测试条件、试验要求、试验条件配图导入标准库"""
     try:
+        import shutil
         data = request.get_json(force=True)
         oem = (data.get("oem") or "").strip()
         test = data.get("test") or {}
@@ -1338,23 +1339,27 @@ def api_standards_save_test():
         if condition_images and project_name:
             # 源图片目录
             src_img_dir = os.path.join(pdir(project_name), "images")
-            # 标准库图片目录
-            std_img_dir = os.path.join(BASE, "模板库", "标准库图片", item, oem)
-            os.makedirs(std_img_dir, exist_ok=True)
+            # 确保标准库图片目录存在
+            os.makedirs(STD_IMG_DIR, exist_ok=True)
 
-            # 复制图片到标准库
-            import shutil
+            # 复制图片到标准库统一目录
+            OK_EXT = (".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tif", ".tiff")
             for img in condition_images:
                 src_file = img.get("file", "")
                 if not src_file:
                     continue
                 src_path = os.path.join(src_img_dir, src_file)
                 if os.path.exists(src_path):
-                    # 使用原文件名
-                    dst_path = os.path.join(std_img_dir, src_file)
+                    # 生成新的唯一文件名
+                    ext = os.path.splitext(src_file)[1].lower() or ".jpg"
+                    if ext not in OK_EXT:
+                        continue
+                    new_filename = uuid.uuid4().hex + ext
+                    dst_path = os.path.join(STD_IMG_DIR, new_filename)
                     shutil.copy2(src_path, dst_path)
                     image_files.append({
-                        "file": src_file,
+                        "file": new_filename,
+                        "orig": src_file,
                         "caption": img.get("caption", "")
                     })
 
