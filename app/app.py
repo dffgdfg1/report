@@ -731,6 +731,8 @@ def api_std_image_apply():
     e = _std_entry(std, item, oem)
     imgs = (e or {}).get("images", []) if e else []
     dst_dir = os.path.join(pdir(project), "images")
+    # 确保目标目录存在
+    os.makedirs(dst_dir, exist_ok=True)
     out = []
     for im in imgs:
         src = os.path.join(STD_IMG_DIR, im.get("file", ""))
@@ -740,7 +742,8 @@ def api_std_image_apply():
         newfn = uuid.uuid4().hex + ext
         try:
             shutil.copyfile(src, os.path.join(dst_dir, newfn))
-        except Exception:
+        except Exception as ex:
+            print(f"复制图片失败: {src} -> {os.path.join(dst_dir, newfn)}, 错误: {ex}")
             continue
         out.append({"file": newfn, "orig": im.get("orig", ""), "caption": im.get("caption", ""), "from_std": True})
     return jsonify({"ok": True, "images": out})
