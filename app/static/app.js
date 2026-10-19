@@ -731,17 +731,30 @@ function renderOemPicker(t, idx) {
     // 标准若带附图（PSD谱/曲线/表格截图等），复制进本项目的"试验条件配图"
     const nImgs = (e.images || []).length;
     if (nImgs) {
-      if (!state.name) { alert("该标准带了附图，但项目名称还是空的（它由「委托单号 + 样品型号」自动生成）。\n请先完善委托单号和样品型号，再套用。"); }
-      else {
+      if (!state.name) {
+        alert("该标准带了附图，但项目名称还是空的（它由「委托单号 + 样品型号」自动生成）。\n请先完善委托单号和样品型号，再套用。");
+        renderTest_replace(idx);
+        scheduleSave();
+        return;
+      } else {
         try {
+          console.log("开始复制标准图片:", { project: state.name, item: matchedKey, oem });
           const j = await readJSON(await fetch("/api/standards/image/apply", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ project: state.name, item: matchedKey, oem }) }));
+          console.log("复制标准图片结果:", j);
           if (j.ok) {
             // 上面已清空 condition_images，直接带入本标准的附图
             t.condition_images = (j.images || []);
+            console.log("已设置 condition_images:", t.condition_images);
+          } else {
+            console.error("复制图片失败:", j.error);
+            alert("复制标准图片失败：" + (j.error || "未知错误"));
           }
-        } catch (err) { /* 图失败不阻断条件套用 */ }
+        } catch (err) {
+          console.error("复制图片异常:", err);
+          alert("复制标准图片时出错：" + err.message);
+        }
       }
     }
     renderTest_replace(idx);
