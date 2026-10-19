@@ -1287,65 +1287,65 @@ def api_open():
     except Exception as ex:
         return jsonify({"ok": False, "error": str(ex)}), 200
 
-@app.route(“/api/open_folder”, methods=[“POST”])
+@app.route("/api/open_folder", methods=["POST"])
 def api_open_folder():
-    “””打开服务器本机输出文件夹并选中该文件（跨平台）。远程访问无效。”””
+    """打开服务器本机输出文件夹并选中该文件（跨平台）。远程访问无效。"""
     data = request.get_json(force=True)
-    fn = os.path.basename(data.get(“file”, “”))
+    fn = os.path.basename(data.get("file", ""))
     fp = os.path.join(OUT_DIR, fn)
     if not _is_local_request():
-        return jsonify({“ok”: False, “remote”: True,
-            “error”: “服务器无法打开你电脑上的文件夹，请改用”下载”。”}), 200
+        return jsonify({"ok": False, "remote": True,
+            "error": "服务器无法打开你电脑上的文件夹，请改用“下载”。"}), 200
     try:
-        if os.path.exists(fp) and sys.platform.startswith(“win”):
-            os.system('explorer /select,”%s”' % fp)
+        if os.path.exists(fp) and sys.platform.startswith("win"):
+            os.system('explorer /select,"%s"' % fp)
         else:
             # Linux/macOS 或文件不存在时，打开输出目录
             _native_open(OUT_DIR)
-        return jsonify({“ok”: True})
+        return jsonify({"ok": True})
     except Exception as ex:
-        return jsonify({“ok”: False, “error”: str(ex)}), 200
+        return jsonify({"ok": False, "error": str(ex)}), 200
 
-@app.route(“/api/standards/save_test”, methods=[“POST”])
-@locks.locked(“std”)
+@app.route("/api/standards/save_test", methods=["POST"])
+@locks.locked("std")
 def api_standards_save_test():
-    “””将测试项目保存为标准：弹窗输入车厂名称，将标准号、测试条件、试验要求、试验条件配图导入标准库”””
+    """将测试项目保存为标准：弹窗输入车厂名称，将标准号、测试条件、试验要求、试验条件配图导入标准库"""
     try:
         data = request.get_json(force=True)
-        oem = (data.get(“oem”) or “”).strip()
-        test = data.get(“test”) or {}
-        project_name = data.get(“project_name”, “”)
+        oem = (data.get("oem") or "").strip()
+        test = data.get("test") or {}
+        project_name = data.get("project_name", "")
 
         if not oem:
-            return jsonify({“ok”: False, “error”: “车厂名称不能为空”}), 200
+            return jsonify({"ok": False, "error": "车厂名称不能为空"}), 200
 
-        item = (test.get(“title”) or “”).strip()
+        item = (test.get("title") or "").strip()
         if not item:
-            return jsonify({“ok”: False, “error”: “测试项目名称不能为空”}), 200
+            return jsonify({"ok": False, "error": "测试项目名称不能为空"}), 200
 
         # 读取标准库
         std = _load_std()
 
         # 准备标准数据
-        standard = (test.get(“standard”) or “”).strip()
-        condition = (test.get(“condition”) or “”).strip()
-        requirement = (test.get(“requirement”) or “”).strip()
+        standard = (test.get("standard") or "").strip()
+        condition = (test.get("condition") or "").strip()
+        requirement = (test.get("requirement") or "").strip()
 
         # 处理试验条件配图
-        condition_images = test.get(“condition_images”, [])
+        condition_images = test.get("condition_images", [])
         image_files = []
 
         if condition_images and project_name:
             # 源图片目录
-            src_img_dir = os.path.join(pdir(project_name), “images”)
+            src_img_dir = os.path.join(pdir(project_name), "images")
             # 标准库图片目录
-            std_img_dir = os.path.join(BASE, “模板库”, “标准库图片”, item, oem)
+            std_img_dir = os.path.join(BASE, "模板库", "标准库图片", item, oem)
             os.makedirs(std_img_dir, exist_ok=True)
 
             # 复制图片到标准库
             import shutil
             for img in condition_images:
-                src_file = img.get(“file”, “”)
+                src_file = img.get("file", "")
                 if not src_file:
                     continue
                 src_path = os.path.join(src_img_dir, src_file)
@@ -1354,31 +1354,31 @@ def api_standards_save_test():
                     dst_path = os.path.join(std_img_dir, src_file)
                     shutil.copy2(src_path, dst_path)
                     image_files.append({
-                        “file”: src_file,
-                        “caption”: img.get(“caption”, “”)
+                        "file": src_file,
+                        "caption": img.get("caption", "")
                     })
 
         # 保存到标准库
         std.setdefault(item, {})[oem] = {
-            “standard”: standard,
-            “condition”: condition,
-            “requirement”: requirement,
-            “images”: image_files
+            "standard": standard,
+            "condition": condition,
+            "requirement": requirement,
+            "images": image_files
         }
 
         _save_std(std)
 
         return jsonify({
-            “ok”: True,
-            “message”: f”已成功将「{item}」保存到标准库的「{oem}」”,
-            “item”: item,
-            “oem”: oem,
-            “image_count”: len(image_files)
+            "ok": True,
+            "message": f"已成功将「{item}」保存到标准库的「{oem}」",
+            "item": item,
+            "oem": oem,
+            "image_count": len(image_files)
         })
     except Exception as ex:
         import traceback
         traceback.print_exc()
-        return jsonify({“ok”: False, “error”: str(ex)}), 200
+        return jsonify({"ok": False, "error": str(ex)}), 200
 
 HOST = os.environ.get("REPORT_HOST", "127.0.0.1").strip() or "127.0.0.1"
 PORT = 8731
