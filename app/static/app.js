@@ -539,9 +539,9 @@ function renderTest(t, idx) {
   ins.style.marginLeft = "auto";
   ins.onclick = (e) => { e.stopPropagation(); insertTestBefore(idx); };
   head.appendChild(ins);
-  const saveScheme = el("button", "btn-mini", "保存为方案");
+  const saveScheme = el("button", "btn-mini", "保存为标准");
   saveScheme.style.marginLeft = "6px";
-  saveScheme.onclick = (e) => { e.stopPropagation(); saveTestScheme(t); };
+  saveScheme.onclick = (e) => { e.stopPropagation(); saveTestAsStandard(t); };
   head.appendChild(saveScheme);
   const del = el("button", "btn-del btn-mini", "删除");
   del.style.marginLeft = "6px";
@@ -783,6 +783,44 @@ async function saveTestScheme(t) {
     if (j.ok) { await reloadSchemes(); toast(`方案「${j.name}」已保存，可在"测试类型"里搜索选用 ✓`); }
     else alert("保存失败：" + (j.error || "未知"));
   } catch (e) { alert(e.message); }
+}
+
+async function saveTestAsStandard(t) {
+  const def = t.title || "";
+  if (!def) {
+    alert("请先填写测试项目名称");
+    return;
+  }
+  const oem = prompt("将此测试项目保存到标准库，请输入车厂名称：", "");
+  if (!oem || !oem.trim()) return;
+
+  try {
+    status("正在保存到标准库…");
+    const r = await fetch("/api/standards/save_test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        oem: oem.trim(),
+        test: t,
+        project_name: state.name
+      }),
+    });
+    const j = await readJSON(r);
+    if (j.ok) {
+      await reloadStandards();
+      const msg = j.image_count > 0
+        ? `已保存到标准库「${j.oem}」，包含 ${j.image_count} 张试验条件配图 ✓`
+        : `已保存到标准库「${j.oem}」✓`;
+      toast(msg);
+      status("保存成功");
+    } else {
+      alert("保存失败：" + (j.error || "未知"));
+      status("保存失败");
+    }
+  } catch (e) {
+    alert("保存失败：" + e.message);
+    status("保存失败");
+  }
 }
 
 function applyPreset(t, type) {
