@@ -653,7 +653,7 @@ function renderTypePicker(t, idx) {
       applyPreset(t, it.name);
     } else if (it.kind === "scheme") {
       await applyScheme(t, it.name);
-    } else if (it.kind === “standard”) {
+    } else if (it.kind === "standard") {
       // 标准库项目：设为标题；若只有一个车厂直接套用，多个则提示去下方选
       t.title = it.name;
       const oems = Object.keys(STD[it.name] || {});
@@ -661,37 +661,37 @@ function renderTypePicker(t, idx) {
         const e = STD[it.name][oems[0]];
         t.oem = oems[0];
         // 套用标准：先清空条件类内容（含试验条件配图）再带入
-        t.standard = e.standard != null ? e.standard : “”;
-        t.condition = e.condition != null ? e.condition : “”;
-        t.requirement = e.requirement != null ? e.requirement : “”;
+        t.standard = e.standard != null ? e.standard : "";
+        t.condition = e.condition != null ? e.condition : "";
+        t.requirement = e.requirement != null ? e.requirement : "";
         if (e.env != null) t.env = e.env;
         t.condition_images = [];
-        // 标准若带附图，复制进本项目的”试验条件配图”
+        // 标准若带附图，复制进本项目的"试验条件配图"
         const nImgs = (e.images || []).length;
         if (nImgs) {
           if (!state.name) {
             toast(`已套用「${it.name} · ${oems[0]}」的条件，但项目名称为空，无法导入附图。请先完善委托单号和样品型号。`);
           } else {
             try {
-              console.log(“自动套用标准，开始复制图片:”, { project: state.name, item: it.name, oem: oems[0] });
-              const j = await readJSON(await fetch(“/api/standards/image/apply”, {
-                method: “POST”, headers: { “Content-Type”: “application/json” },
+              console.log("自动套用标准，开始复制图片:", { project: state.name, item: it.name, oem: oems[0] });
+              const j = await readJSON(await fetch("/api/standards/image/apply", {
+                method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ project: state.name, item: it.name, oem: oems[0] }) }));
-              console.log(“复制图片结果:”, j);
+              console.log("复制图片结果:", j);
               if (j.ok) {
                 t.condition_images = (j.images || []);
-                console.log(“已设置 condition_images:”, t.condition_images);
+                console.log("已设置 condition_images:", t.condition_images);
               } else {
-                console.error(“复制图片失败:”, j.error);
+                console.error("复制图片失败:", j.error);
               }
             } catch (err) {
-              console.error(“复制图片异常:”, err);
+              console.error("复制图片异常:", err);
             }
           }
         }
-        toast(`已套用「${it.name} · ${oems[0]}」的条件${nImgs ? “ + “ + nImgs + “ 张附图” : “”} ✓`);
+        toast(`已套用「${it.name} · ${oems[0]}」的条件${nImgs ? " + " + nImgs + " 张附图" : ""} ✓`);
       } else if (oems.length > 1) {
-        toast(`「${it.name}」有 ${oems.length} 个车厂，请在下方”按车厂”里选`);
+        toast(`「${it.name}」有 ${oems.length} 个车厂，请在下方"按车厂"里选`);
       }
     }
     renderTest_replace(idx); scheduleSave();

@@ -19,6 +19,7 @@ if APP_DIR not in sys.path:
 import importlib.util
 spec = importlib.util.spec_from_file_location("app_module", os.path.join(APP_DIR, "app.py"))
 app_module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = app_module
 spec.loader.exec_module(app_module)
 app = app_module.app
 
