@@ -941,7 +941,6 @@ function renderSaveStdDetails(item) {
       return line;
     };
     card.appendChild(field("标准号/条款号", data.standard));
-    card.appendChild(field("环境条件", data.env));
     card.appendChild(field("试验条件", data.condition));
     card.appendChild(field("试验要求", data.requirement));
     wrap.appendChild(card);
