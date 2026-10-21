@@ -962,7 +962,7 @@ function openSaveStdModal(t) {
   const m = ensureSaveStdModal();
   m.test = t;
   m.current.innerHTML = `当前测试项目：<b>${escAttr(t.title || "未命名")}</b>`;
-  m.search.value = "";
+  m.search.value = t.title || "";
   m.itemInput.value = t.title || "";
   m.oemInput.value = t.oem || "";
   m.expanded.clear();
