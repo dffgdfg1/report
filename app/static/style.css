@@ -151,6 +151,27 @@ table.rows td { vertical-align: top; }
   align-items: center; justify-content: center; }
 .modal { background: #fff; width: 92vw; max-width: 1180px; height: 86vh; border-radius: 10px;
   display: flex; flex-direction: column; box-shadow: 0 10px 50px rgba(0,0,0,.3); overflow: hidden; }
+.save-std-modal { width: 92vw; max-width: 720px; height: auto; max-height: 82vh; }
+.save-std-body { padding: 18px 20px 20px; overflow: auto; }
+.save-std-current { padding: 9px 11px; background: #f4f7fd; border: 1px solid #dfe7f5; border-radius: 6px; color: #4a5a7a; font-size: 13px; }
+.save-std-current b { color: #24406e; }
+.save-std-body > .std-search { display: block; width: 100%; box-sizing: border-box; margin-top: 14px; }
+.save-std-hint { margin: 7px 0; color: #6d7c99; font-size: 12px; }
+.save-std-results { max-height: 220px; overflow-y: auto; border: 1px solid #e1e6f0; border-radius: 6px; background: #fff; }
+.save-std-result { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 9px 11px; border: 0; border-bottom: 1px solid #eef0f4; border-radius: 0; background: #fff; color: #253858; text-align: left; font-size: 13px; }
+.save-std-result:last-child { border-bottom: 0; }
+.save-std-result:hover, .save-std-result.selected { background: #eef4ff; color: #1f6feb; }
+.save-std-result small { color: #8593ab; font-size: 11px; }
+.save-std-empty { padding: 18px 12px; color: #889; text-align: center; font-size: 12px; }
+.save-std-selected { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: #456; }
+.save-std-selected span { flex: 0 0 auto; }
+.save-std-selected input { flex: 1; min-width: 0; padding: 7px 9px; border: 1px solid #b8c4e0; border-radius: 5px; font-size: 13px; font-family: inherit; }
+.save-std-oem { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.save-std-oem label { flex: 0 0 78px; font-size: 13px; color: #456; }
+.save-std-oem input { flex: 1; min-width: 0; padding: 7px 9px; border: 1px solid #b8c4e0; border-radius: 5px; font-size: 13px; font-family: inherit; }
+.save-std-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.save-std-actions .btn-primary { background: #1f6feb; color: #fff; }
+.save-std-actions .btn-ghost { background: #fff; color: #556; border: 1px solid #ccd; }
 .modal-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #eee; }
 .modal-head b { font-size: 16px; }
 .modal-sub { font-size: 12px; color: #889; }

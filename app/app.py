@@ -1323,7 +1323,9 @@ def api_standards_save_test():
         if not oem:
             return jsonify({"ok": False, "error": "车厂名称不能为空"}), 200
 
-        item = (test.get("title") or "").strip()
+        # 保存时允许前端把当前测试名称归并到标准库已有的同义项目，
+        # 未选择已有项目时回退到当前测试项目名称（新建项目）。
+        item = (data.get("item_name") or test.get("title") or "").strip()
         if not item:
             return jsonify({"ok": False, "error": "测试项目名称不能为空"}), 200
 

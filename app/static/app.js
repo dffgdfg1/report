@@ -539,7 +539,7 @@ function renderTest(t, idx) {
   ins.style.marginLeft = "auto";
   ins.onclick = (e) => { e.stopPropagation(); insertTestBefore(idx); };
   head.appendChild(ins);
-  const saveScheme = el("button", "btn-mini", "保存为标准");
+  const saveScheme = el("button", "btn-mini", "保存到标准库");
   saveScheme.style.marginLeft = "6px";
   saveScheme.onclick = (e) => { e.stopPropagation(); saveTestAsStandard(t); };
   head.appendChild(saveScheme);
@@ -821,42 +821,133 @@ async function saveTestScheme(t) {
   } catch (e) { alert(e.message); }
 }
 
-async function saveTestAsStandard(t) {
-  const def = t.title || "";
-  if (!def) {
-    alert("请先填写测试项目名称");
+// ============ 保存到标准库：同义项目检索/新建弹窗 ============
+let saveStdModal = null;
+
+function ensureSaveStdModal() {
+  if (saveStdModal) return saveStdModal;
+  const mask = el("div", "modal-mask");
+  mask.id = "saveStdModal";
+  mask.style.display = "none";
+  const modal = el("div", "modal save-std-modal");
+  const head = el("div", "modal-head");
+  head.appendChild(el("b", null, "保存到标准库"));
+  head.appendChild(el("span", "modal-sub", "先查找同义项目；没有匹配项时可新建"));
+  head.appendChild(el("div", "spacer"));
+  const close = el("span", "modal-close", "×");
+  head.appendChild(close);
+  modal.appendChild(head);
+
+  const body = el("div", "save-std-body");
+  const current = el("div", "save-std-current");
+  const search = el("input", "std-search");
+  search.placeholder = "搜索标准库项目关键词，例如：低温";
+  const hint = el("div", "save-std-hint", "可输入简称、关键词或同义词。点击已有项目即可归并保存。 ");
+  const results = el("div", "save-std-results");
+  const selected = el("div", "save-std-selected");
+  const selectedLabel = el("span", null, "保存到项目：");
+  const itemInput = el("input");
+  itemInput.placeholder = "已有项目名称，或输入新项目名称";
+  selected.appendChild(selectedLabel);
+  selected.appendChild(itemInput);
+  const oemRow = el("div", "save-std-oem");
+  const oemLabel = el("label", null, "车厂名称");
+  const oemInput = el("input");
+  oemInput.placeholder = "例如：吉利";
+  oemRow.appendChild(oemLabel); oemRow.appendChild(oemInput);
+  const actions = el("div", "save-std-actions");
+  const cancel = el("button", "btn-ghost", "取消");
+  const save = el("button", "btn-primary", "保存");
+  actions.appendChild(cancel); actions.appendChild(save);
+  [current, search, hint, results, selected, oemRow, actions].forEach(x => body.appendChild(x));
+  modal.appendChild(body); mask.appendChild(modal); document.body.appendChild(mask);
+  saveStdModal = { mask, current, search, results, itemInput, oemInput, save, close, cancel, test: null };
+  const closeModal = () => { mask.style.display = "none"; save.disabled = false; };
+  close.onclick = closeModal; cancel.onclick = closeModal;
+  mask.onclick = (e) => { if (e.target === mask) closeModal(); };
+  search.oninput = () => renderSaveStdMatches();
+  itemInput.oninput = () => renderSaveStdMatches();
+  save.onclick = () => submitSaveStd();
+  return saveStdModal;
+}
+
+function saveStdItemMatches(filter) {
+  const f = (filter || "").trim();
+  return Object.keys(STD)
+    .filter(name => !f || fuzzyMatch(name, f))
+    .sort((a, b) => a.localeCompare(b, "zh"));
+}
+
+function renderSaveStdMatches() {
+  const m = saveStdModal;
+  if (!m || !m.test) return;
+  const names = saveStdItemMatches(m.search.value);
+  m.results.innerHTML = "";
+  if (!names.length) {
+    m.results.appendChild(el("div", "save-std-empty", "没有匹配的标准库项目，下面的名称会作为新项目保存。"));
     return;
   }
-  const oem = prompt("将此测试项目保存到标准库，请输入车厂名称：", "");
-  if (!oem || !oem.trim()) return;
+  names.forEach(name => {
+    const row = el("button", "save-std-result");
+    row.type = "button";
+    const count = Object.keys(STD[name] || {}).length;
+    row.innerHTML = `<span>${escAttr(name)}</span><small>${count} 个车厂</small>`;
+    if (m.itemInput.value.trim() === name) row.classList.add("selected");
+    row.onclick = () => { m.itemInput.value = name; renderSaveStdMatches(); };
+    m.results.appendChild(row);
+  });
+}
 
+function openSaveStdModal(t) {
+  const m = ensureSaveStdModal();
+  m.test = t;
+  m.current.innerHTML = `当前测试项目：<b>${escAttr(t.title || "未命名")}</b>`;
+  m.search.value = "";
+  m.itemInput.value = t.title || "";
+  m.oemInput.value = t.oem || "";
+  m.save.disabled = false;
+  m.mask.style.display = "flex";
+  renderSaveStdMatches();
+  setTimeout(() => m.search.focus(), 0);
+}
+
+async function submitSaveStd() {
+  const m = saveStdModal;
+  if (!m || !m.test) return;
+  const item = m.itemInput.value.trim();
+  const oem = m.oemInput.value.trim();
+  if (!item) { alert("请先选择已有标准库项目，或输入新项目名称。"); m.itemInput.focus(); return; }
+  if (!oem) { alert("请填写车厂名称。"); m.oemInput.focus(); return; }
+  m.save.disabled = true;
   try {
     status("正在保存到标准库…");
     const r = await fetch("/api/standards/save_test", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        oem: oem.trim(),
-        test: t,
-        project_name: state.name
-      }),
+      body: JSON.stringify({ item_name: item, oem, test: m.test, project_name: state.name }),
     });
     const j = await readJSON(r);
-    if (j.ok) {
-      await reloadStandards();
-      const msg = j.image_count > 0
-        ? `已保存到标准库「${j.oem}」，包含 ${j.image_count} 张试验条件配图 ✓`
-        : `已保存到标准库「${j.oem}」✓`;
-      toast(msg);
-      status("保存成功");
-    } else {
-      alert("保存失败：" + (j.error || "未知"));
-      status("保存失败");
-    }
+    if (!j.ok) throw new Error(j.error || "未知错误");
+    m.mask.style.display = "none";
+    await reloadStandards();
+    renderTests();
+    const msg = j.image_count > 0
+      ? `已保存到「${j.item} · ${j.oem}」，包含 ${j.image_count} 张试验条件配图 ✓`
+      : `已保存到「${j.item} · ${j.oem}」✓`;
+    toast(msg); status("保存成功");
   } catch (e) {
-    alert("保存失败：" + e.message);
-    status("保存失败");
+    alert("保存失败：" + e.message); status("保存失败");
+  } finally {
+    m.save.disabled = false;
   }
+}
+
+async function saveTestAsStandard(t) {
+  if (!(t.title || "").trim()) {
+    alert("请先填写测试项目名称");
+    return;
+  }
+  openSaveStdModal(t);
 }
 
 function applyPreset(t, type) {
