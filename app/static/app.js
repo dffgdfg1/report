@@ -902,15 +902,18 @@ function renderSaveStdMatches() {
     main.appendChild(nameEl);
     main.appendChild(el("small", null, `${count} 个车厂`));
     if (m.itemInput.value.trim() === name) row.classList.add("selected");
-    main.onclick = () => { m.itemInput.value = name; renderSaveStdMatches(); updateSaveStdWarning(); };
     row.appendChild(main);
     const toggle = el("button", "save-std-expand", m.expanded.has(name) ? "收起详情" : "展开详情");
     toggle.type = "button";
-    toggle.onclick = () => {
+    row.appendChild(toggle);
+    row.onclick = (event) => {
+      // 详情内容是展开后的阅读区，点击其中内容不应再次收起当前项目。
+      if (event.target.closest(".save-std-details")) return;
+      m.itemInput.value = name;
       if (m.expanded.has(name)) m.expanded.delete(name); else m.expanded.add(name);
       renderSaveStdMatches();
+      updateSaveStdWarning();
     };
-    row.appendChild(toggle);
     if (m.expanded.has(name)) row.appendChild(renderSaveStdDetails(name));
     m.results.appendChild(row);
   });

@@ -158,7 +158,7 @@ table.rows td { vertical-align: top; }
 .save-std-body > .std-search { display: block; width: 100%; box-sizing: border-box; margin-top: 14px; }
 .save-std-hint { margin: 7px 0; color: #6d7c99; font-size: 12px; }
 .save-std-results { max-height: 220px; overflow-y: auto; border: 1px solid #e1e6f0; border-radius: 6px; background: #fff; }
-.save-std-result { display: flex; align-items: stretch; flex-wrap: wrap; border-bottom: 1px solid #eef0f4; background: #fff; color: #253858; font-size: 13px; }
+.save-std-result { display: flex; align-items: stretch; flex-wrap: wrap; border-bottom: 1px solid #eef0f4; background: #fff; color: #253858; font-size: 13px; cursor: pointer; }
 .save-std-result:last-child { border-bottom: 0; }
 .save-std-result:hover, .save-std-result.selected { background: #eef4ff; color: #1f6feb; }
 .save-std-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; padding: 9px 8px 9px 11px; border: 0; background: transparent; color: inherit; text-align: left; font-size: 13px; }
