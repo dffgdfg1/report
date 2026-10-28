@@ -1536,15 +1536,102 @@ async function loadProject(name) {
   status("已载入");
 }
 
+function showProjectPicker(projects) {
+  const old = $("#projectModal");
+  if (old) old.remove();
+
+  const mask = el("div", "modal-mask");
+  mask.id = "projectModal";
+  const modal = el("div", "modal project-modal");
+  const head = el("div", "modal-head");
+  const title = el("b");
+  title.textContent = "打开历史报告";
+  const count = el("span", "modal-sub");
+  count.textContent = `${projects.length} 条记录`;
+  const spacer = el("div", "spacer");
+  const closeButton = el("span", "modal-close");
+  closeButton.textContent = "×";
+  closeButton.title = "关闭";
+  head.append(title, count, spacer, closeButton);
+
+  const searchWrap = el("div", "project-modal-search-wrap");
+  const search = el("input", "project-modal-search");
+  search.type = "search";
+  search.placeholder = "搜索报告名称";
+  search.setAttribute("aria-label", "搜索报告名称");
+  searchWrap.appendChild(search);
+
+  const list = el("div", "project-list");
+  list.setAttribute("role", "listbox");
+  const empty = el("div", "project-empty");
+  empty.style.display = "none";
+
+  const close = () => {
+    document.removeEventListener("keydown", onKeyDown);
+    mask.remove();
+  };
+  const onKeyDown = (e) => {
+    if (e.key === "Escape") close();
+  };
+
+  const render = () => {
+    const filter = search.value.trim();
+    const visible = projects.filter((p) => fuzzyMatch(p.name, filter));
+    list.innerHTML = "";
+    empty.style.display = visible.length ? "none" : "block";
+    if (!visible.length) {
+      empty.textContent = filter ? "没有匹配的报告" : "暂无已保存的报告";
+      return;
+    }
+    visible.forEach((project) => {
+      const item = el("button", "project-item");
+      item.type = "button";
+      item.setAttribute("role", "option");
+      item.title = project.name;
+      const name = el("span", "project-item-name");
+      name.textContent = project.name;
+      item.appendChild(name);
+      item.addEventListener("click", async () => {
+        close();
+        await loadProject(project.name);
+      });
+      list.appendChild(item);
+    });
+  };
+
+  search.addEventListener("input", render);
+  closeButton.addEventListener("click", close);
+  mask.addEventListener("click", (e) => {
+    if (e.target === mask) close();
+  });
+  modal.append(head, searchWrap, list, empty);
+  mask.appendChild(modal);
+  document.body.appendChild(mask);
+  document.addEventListener("keydown", onKeyDown);
+  render();
+  search.focus();
+}
+
 async function openDialog() {
   const r = await fetch("/api/projects");
-  const names = await readJSON(r);
-  if (!names.length) { alert("暂无已保存的项目"); return; }
-  const pick = prompt("打开哪个项目？\n\n" + names.map((n, i) => `${i + 1}. ${n}`).join("\n") + "\n\n输入序号或名称：");
-  if (!pick) return;
-  let name = names[parseInt(pick) - 1] || (names.includes(pick) ? pick : null);
-  if (!name) { alert("未找到"); return; }
-  await loadProject(name);
+  const raw = await readJSON(r);
+  const projects = (Array.isArray(raw) ? raw : [])
+    .map((item) => {
+      if (typeof item === "string") return { name: item };
+      if (item && typeof item === "object" && item.name) return item;
+      return null;
+    })
+    .filter((item) => item && item.name);
+  if (!projects.length) { alert("暂无已保存的项目"); return; }
+  // 后端已按更新时间倒序；对象格式下再做一次客户端兜底排序。
+  if (projects.some((p) => p.updated_at || p.mtime)) {
+    projects.sort((a, b) => {
+      const at = Date.parse(a.updated_at || a.mtime || "") || 0;
+      const bt = Date.parse(b.updated_at || b.mtime || "") || 0;
+      return bt - at;
+    });
+  }
+  showProjectPicker(projects);
 }
 
 function newProject() {

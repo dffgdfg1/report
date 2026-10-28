@@ -156,11 +156,19 @@ def api_meta():
 
 @app.route("/api/projects")
 def api_projects():
-    names = []
-    for d in sorted(glob.glob(os.path.join(PROJ_DIR, "*"))):
-        if os.path.isdir(d) and os.path.exists(os.path.join(d, "project.json")):
-            names.append(os.path.basename(d))
-    return jsonify(names)
+    projects = []
+    for d in glob.glob(os.path.join(PROJ_DIR, "*")):
+        fp = os.path.join(d, "project.json")
+        if not os.path.isdir(d) or not os.path.exists(fp):
+            continue
+        try:
+            # project.json 每次保存都会更新，按最近保存时间倒序可优先看到最新报告。
+            updated_at = os.path.getmtime(fp)
+        except OSError:
+            updated_at = 0
+        projects.append((updated_at, os.path.basename(d)))
+    projects.sort(key=lambda item: (-item[0], item[1]))
+    return jsonify([name for _, name in projects])
 
 @app.route("/api/load")
 def api_load():
