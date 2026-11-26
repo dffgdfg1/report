@@ -1,0 +1,46 @@
+{
+  "振动测试": {
+    "比亚迪": {
+      "standard": "BYD-Q-SC 001 5.2",
+      "condition": "扫频 10-500Hz，3轴各2h",
+      "requirement": "功能等级A。",
+      "images": []
+    },
+    "蔚来": {
+      "standard": "NIO-TS-018 6.1",
+      "condition": "随机振动 PSD谱见附表，3轴各8h",
+      "requirement": "功能等级A。",
+      "images": []
+    }
+  },
+  "高温工作": {
+    "通用": {
+      "standard": "ISO 16750-4 5.1.2",
+      "condition": "高温工作16h，通电监测",
+      "requirement": "功能等级A。",
+      "images": []
+    }
+  },
+  "低温运行": {
+    "大众": {
+      "standard": "2",
+      "condition": "2",
+      "requirement": "",
+      "images": [
+        {
+          "file": "65818967ab834f8186f21c261962e72c.png",
+          "orig": "Screenshot from 2026-03-06 10-11-12.png",
+          "caption": ""
+        }
+      ]
+    }
+  },
+  "高温运行": {
+    "大众": {
+      "standard": "",
+      "condition": "",
+      "requirement": "",
+      "images": []
+    }
+  }
+}

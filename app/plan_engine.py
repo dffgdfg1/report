@@ -18,7 +18,10 @@ import math
 import openpyxl
 from openpyxl.utils import get_column_letter
 
-BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE = os.path.abspath(os.environ.get(
+    "REPORT_GENERATOR_HOME",
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+))
 TEMPLATE = os.path.join(BASE, "模板库", "试验计划模板.xlsx")
 
 # 数据行列 -> (取值函数)；1-based 列号

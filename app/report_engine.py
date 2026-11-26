@@ -24,7 +24,10 @@ IMG_H_CM = 5.7
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 
-BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE = os.path.abspath(os.environ.get(
+    "REPORT_GENERATOR_HOME",
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+))
 SKELETON = os.path.join(BASE, "模板库", "骨架.docx")
 DONOR = os.path.join(BASE, "模板库", "主体_full.docx")
 # 车厂「工作模式定义/功能状态分级」库：ku/<车厂名>.docx。报告里这段按所选车厂整段替换。
@@ -1112,9 +1115,14 @@ def update_fields_com(path):
     try:
         import win32com.client as win32
         try:
-            app = win32.gencache.EnsureDispatch("KWps.Application")   # 优先 WPS
+            # DispatchEx creates an automation-owned instance. EnsureDispatch/Dispatch
+            # may attach to the user's open WPS session; calling Quit would close it.
+            app = win32.DispatchEx("KWps.Application")   # 优先 WPS
         except Exception:
-            app = win32.gencache.EnsureDispatch("Word.Application")   # 退回 Word
+            try:
+                app = win32.DispatchEx("Word.Application")   # 退回 Word
+            except Exception:
+                return  # No isolated instance: leave the report's fields for WPS to update on open.
         try:
             app.Visible = False
         except Exception:

@@ -19,7 +19,10 @@ from docxcompose.composer import Composer
 
 W = E.W
 
-BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE = os.path.abspath(os.environ.get(
+    "REPORT_GENERATOR_HOME",
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+))
 SKELETON = os.path.join(BASE, "模板库", "原始记录骨架.docx")
 # 每张原始记录末尾另起一页追加的「试验过程点检记录」附页
 CHECKLIST = os.path.join(BASE, "模板库", "试验过程点检记录.docx")

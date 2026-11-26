@@ -23,7 +23,10 @@ import plan_engine as PL
 import feishu_auth
 import locks
 
-BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE = os.path.abspath(os.environ.get(
+    "REPORT_GENERATOR_HOME",
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+))
 PROJ_DIR = os.path.join(BASE, "项目")
 OUT_DIR = os.path.join(BASE, "输出")
 os.makedirs(PROJ_DIR, exist_ok=True)
